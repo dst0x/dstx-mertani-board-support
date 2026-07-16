@@ -3,9 +3,17 @@
 * 
 * Created on: 14 June 2026
 *     Author: DST0x
+* 
+* Modified: 15 July 2026
+*     Integrated with sensor_manager for centralized control
 */
 
 #include "drivers/sensor_sensirion_sen66/sensirion_sen66.h"
+#include "bsp/bsp_iwdg.h"
+
+#ifdef USART1_DEBUG_MODE
+#include "bsp/bsp_uart.h"
+#endif
 
 static uint8_t calc_crc(const uint8_t data[2U])
 {
@@ -60,6 +68,16 @@ static void parse_response_data(const uint8_t *buf, sen66_data_s *tmp){
     int16_t  nox  = BYTES_TO_I16(buf[21U], buf[22U]);
     uint16_t co2  = BYTES_TO_U16(buf[24U], buf[25U]);
 
+#ifdef USART1_DEBUG_MODE
+    /* Debug raw CO2 value */
+    if (co2 == SEN66_UNAVAIL_U16) {
+        bsp_debug_write_str("[SEN66] CO2 raw: UNAVAILABLE (0xFFFF)\r\n");
+    } else {
+        bsp_debug_write_str("[SEN66] CO2 raw: ");
+        bsp_debug_write_int("", (int32_t)co2, " ppm\r\n");
+    }
+#endif
+
     tmp->pm_valid  = !is_unavail_u16(pm1);
     tmp->env_valid = !is_unavail_i16(rh);
     tmp->gas_valid = (!is_unavail_i16(voc)) && (!is_unavail_i16(nox));
@@ -71,7 +89,7 @@ static void parse_response_data(const uint8_t *buf, sen66_data_s *tmp){
     tmp->pm10    = tmp->pm_valid  ? pm10 : 0U;
     tmp->co2_ppm = tmp->co2_valid ? co2  : 0U;
     
-    tmp->rh      = tmp->env_valid ? rh   : (int16_t)0;
+    tmp->rh      = tmp->env_valid ? (int16_t)(rh / (int16_t)10)   : (int16_t)0;
     tmp->voc     = tmp->gas_valid ? voc  : (int16_t)0;
     tmp->nox     = tmp->gas_valid ? nox  : (int16_t)0;
     
@@ -153,18 +171,33 @@ status_e sensirion_sen66_init(sen66_ctx_s *ctx){
     (void)memset(ctx, 0, sizeof(sen66_ctx_s));
     ctx->state = SEN66_STATE_UNINIT;
 
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[SEN66] Initializing sensor...\r\n");
+#endif
+
     bsp_systick_delay_ms(SEN66_STARTUP_MS);
     status = bsp_i2c_write_data(SEN66_I2C_ADDR, SEN66_CMD_READ_PRODUCT, prod_buf, (uint8_t)sizeof(prod_buf));
 
     if(status != STATUS_OK){
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[SEN66] I2C communication failed\r\n");
+#endif
         return handle_err(ctx, status);
     }
     if(verify_crc_words(prod_buf, 16U) != STATUS_OK){
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[SEN66] CRC verification failed\r\n");
+#endif
         return handle_err(ctx, STATUS_ERR_CRC);
     }
     ctx->state          = SEN66_STATE_IDLE;
     ctx->error_count    = 0U;
     ctx->data_fresh     = false;
+    
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[SEN66] Initialization successful\r\n");
+#endif
+    
     return STATUS_OK;
 }
 
@@ -178,8 +211,15 @@ status_e sensirion_sen66_start_measurement(sen66_ctx_s *ctx){
         return STATUS_ERR_STATE;
     }
 
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[SEN66] Starting measurement...\r\n");
+#endif
+
     status = bsp_i2c_write_cmd(SEN66_I2C_ADDR, SEN66_CMD_START_MEAS);
     if(status != STATUS_OK){
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[SEN66] Failed to start measurement\r\n");
+#endif
         return handle_err(ctx, status);
     }
 
@@ -189,16 +229,31 @@ status_e sensirion_sen66_start_measurement(sen66_ctx_s *ctx){
     ctx->start_tick = bsp_systick_get_tick();
     ctx->data_fresh = false;
     ctx->error_count= 0U;
+    
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[SEN66] Measurement started, entering warmup phase\r\n");
+#endif
+    
     return STATUS_OK;
 }
 
 status_e sensirion_sen66_stop_measurement(sen66_ctx_s *ctx){
     status_e status;
+    uint32_t elapsed, start_tick;
+    
     if(ctx == NULL){
         return STATUS_ERR_PARAM;
     }
     status = bsp_i2c_write_cmd(SEN66_I2C_ADDR, SEN66_CMD_STOP_MEAS);
-    bsp_systick_delay_ms(SEN66_STOP_DELAY_MS);
+    
+    start_tick = bsp_systick_get_tick();
+    while (!bsp_systick_elapsed(start_tick, SEN66_STOP_DELAY_MS)) {
+        elapsed = bsp_systick_get_tick() - start_tick;
+        if ((elapsed % 500U) == 0U) {
+            bsp_iwdg_refresh();
+        }
+    }
+    
     ctx->state = SEN66_STATE_IDLE;
     return status;
 }
@@ -286,15 +341,37 @@ status_e sensirion_sen66_poll(sen66_ctx_s *ctx){
 status_e sensirion_sen66_reset(sen66_ctx_s *ctx)
 {
     status_e status;
+    uint32_t elapsed, start_tick;
+    
     if (ctx == NULL){
         return STATUS_ERR_PARAM; 
     }
+    
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[SEN66] Resetting sensor...\r\n");
+#endif
+    
     (void)bsp_i2c_write_cmd(SEN66_I2C_ADDR, SEN66_CMD_RESET);
-    bsp_systick_delay_ms(SEN66_RESET_DELAY_MS);
+    
+    start_tick = bsp_systick_get_tick();
+    while (!bsp_systick_elapsed(start_tick, SEN66_RESET_DELAY_MS)) {
+        elapsed = bsp_systick_get_tick() - start_tick;
+        if ((elapsed % 500U) == 0U) {
+            bsp_iwdg_refresh();
+        }
+    }
+    
     status = sensirion_sen66_init(ctx);
     if (status != STATUS_OK){
         ctx->state       = SEN66_STATE_ERROR;
         ctx->error_count = SEN66_MAX_ERRORS;
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[SEN66] Reset failed\r\n");
+#endif
+    } else {
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[SEN66] Reset successful\r\n");
+#endif
     }
     return status;
 }

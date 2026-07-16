@@ -1,15 +1,20 @@
 #include "bsp/bsp_i2c.h"
 #include "bsp/bsp_systick.h"
+#include "bsp/bsp_iwdg.h"
 #include "stm32g0xx.h"
 
 #define I2C2_TIMINGR     (0x9032191FUL)
-#define I2C_FLAG_TIMEOUT (5000UL)
+#define I2C_TIMEOUT_MS   (50U)  /* 50ms timeout for I2C operations */
 
-static status_e wait_flag_set(volatile const uint32_t *reg, uint32_t mask, uint32_t timeout){
-    uint32_t count = 0U;
-    while(count < timeout){
+static status_e wait_flag_set(volatile const uint32_t *reg, uint32_t mask, uint32_t timeout_ms){
+    uint32_t start_tick = bsp_systick_get_tick();
+    while(!bsp_systick_elapsed(start_tick, timeout_ms)){
         if ((*reg & mask) != 0UL) {return STATUS_OK;}
-        count++;
+        
+        /* Refresh watchdog periodically during wait */
+        if ((bsp_systick_get_tick() - start_tick) % 10U == 0U) {
+            bsp_iwdg_refresh();
+        }
     }
     return STATUS_ERR_TIMEOUT;
 }
@@ -43,6 +48,9 @@ void bsp_i2c_bus_recover(void){
         bsp_systick_delay_ms(1U);
         GPIOA->BSRR = (1UL << (11U + 16U));
         bsp_systick_delay_ms(1U);
+        
+        /* Refresh IWDG during bus recovery */
+        bsp_iwdg_refresh();
     }
     GPIOA->MODER &= ~(3UL << (11U * 2U));
     GPIOA->MODER |=  (2UL << (11U * 2U));
@@ -65,17 +73,17 @@ status_e bsp_i2c_write_cmd(uint8_t addr, uint16_t cmd){
                ((uint32_t)addr << 1U) | (2UL << I2C_CR2_NBYTES_Pos) | I2C_CR2_AUTOEND);
     SET_BIT(I2C2->CR2, I2C_CR2_START);
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_TIMEOUT_MS);
     if (status != STATUS_OK) { return STATUS_ERR_I2C; }
     if (check_nack() != STATUS_OK) { return STATUS_ERR_I2C; }
     I2C2->TXDR = (uint32_t)cmd_hi;
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_TIMEOUT_MS);
     if (status != STATUS_OK) { return STATUS_ERR_I2C; }
     if (check_nack() != STATUS_OK) { return STATUS_ERR_I2C; }
     I2C2->TXDR = (uint32_t)cmd_lo;
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_TIMEOUT_MS);
     SET_BIT(I2C2->ICR, I2C_ICR_STOPCF);
     return status;
 }
@@ -95,17 +103,17 @@ status_e bsp_i2c_write_data(uint8_t addr, uint16_t cmd, uint8_t *buf, uint8_t le
                ((uint32_t)addr << 1U) | (2UL << I2C_CR2_NBYTES_Pos) | I2C_CR2_AUTOEND);
     SET_BIT(I2C2->CR2, I2C_CR2_START);
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_TIMEOUT_MS);
     if (status != STATUS_OK) { return STATUS_ERR_I2C; }
     if (check_nack() != STATUS_OK) { return STATUS_ERR_I2C; }
     I2C2->TXDR = (uint32_t)cmd_hi;
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_TXIS, I2C_TIMEOUT_MS);
     if (status != STATUS_OK) { return STATUS_ERR_I2C; }
     if (check_nack() != STATUS_OK) { return STATUS_ERR_I2C; }
     I2C2->TXDR = (uint32_t)cmd_lo;
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_TIMEOUT_MS);
     SET_BIT(I2C2->ICR, I2C_ICR_STOPCF);
     if (status != STATUS_OK) { return STATUS_ERR_I2C; }
 
@@ -120,12 +128,12 @@ status_e bsp_i2c_write_data(uint8_t addr, uint16_t cmd, uint8_t *buf, uint8_t le
 
     for (i = 0U; i < len; i++)
     {
-        status = wait_flag_set(&I2C2->ISR, I2C_ISR_RXNE, I2C_FLAG_TIMEOUT);
+        status = wait_flag_set(&I2C2->ISR, I2C_ISR_RXNE, I2C_TIMEOUT_MS);
         if (status != STATUS_OK) { return STATUS_ERR_I2C; }
         buf[i] = (uint8_t)(I2C2->RXDR & 0xFFUL);
     }
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_TIMEOUT_MS);
     SET_BIT(I2C2->ICR, I2C_ICR_STOPCF);
     return status;
 }
@@ -148,25 +156,27 @@ status_e bsp_i2c_read_data(uint8_t addr, uint8_t *buf, uint8_t len){
 
     for (i = 0U; i < len; i++)
     {
-        status = wait_flag_set(&I2C2->ISR, I2C_ISR_RXNE, I2C_FLAG_TIMEOUT);
+        status = wait_flag_set(&I2C2->ISR, I2C_ISR_RXNE, I2C_TIMEOUT_MS);
         if (status != STATUS_OK) { return STATUS_ERR_I2C; }
         buf[i] = (uint8_t)(I2C2->RXDR & 0xFFUL);
     }
 
-    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_FLAG_TIMEOUT);
+    status = wait_flag_set(&I2C2->ISR, I2C_ISR_STOPF, I2C_TIMEOUT_MS);
     SET_BIT(I2C2->ICR, I2C_ICR_STOPCF);
     return status;
 }
 
 status_e bsp_i2c_scan(uint8_t addr){
+    uint32_t start_tick;
+    
     I2C2->ICR = 0xFFFFFFFFUL;
     MODIFY_REG(I2C2->CR2,
                I2C_CR2_SADD | I2C_CR2_NBYTES | I2C_CR2_RD_WRN | I2C_CR2_AUTOEND,
                ((uint32_t)addr << 1U) | I2C_CR2_AUTOEND);
     SET_BIT(I2C2->CR2, I2C_CR2_START);
 
-    uint32_t timeout = I2C_FLAG_TIMEOUT;
-    while (timeout > 0U)
+    start_tick = bsp_systick_get_tick();
+    while (!bsp_systick_elapsed(start_tick, I2C_TIMEOUT_MS))
     {
         if ((I2C2->ISR & I2C_ISR_NACKF) != 0UL)
         {
@@ -178,7 +188,6 @@ status_e bsp_i2c_scan(uint8_t addr){
             SET_BIT(I2C2->ICR, I2C_ICR_STOPCF);
             return STATUS_OK;
         }
-        timeout--;
     }
     return STATUS_ERR_TIMEOUT;
 }

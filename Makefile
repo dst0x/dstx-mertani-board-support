@@ -27,6 +27,7 @@ MCU_FLAGS := -mcpu=cortex-m0plus \
 # ---------------------------------------------------------------------------
 SRCS := main.c                        \
         bsp/bsp_clock.c               \
+        bsp/bsp_flash.c               \
         bsp/bsp_gpio.c                \
         bsp/bsp_i2c.c                 \
         bsp/bsp_iwdg.c                \
@@ -36,7 +37,9 @@ SRCS := main.c                        \
         drivers/sensor_sensirion_sen66/sensirion_sen66.c           \
         drivers/sensor_infwin_co/infwin_co_sensor.c       \
         middleware/modbus/modbus_crc.c               \
-        middleware/modbus/modbus_slave.c
+        middleware/modbus/modbus_slave.c             \
+        middleware/sensor_manager.c                  \
+        middleware/uart_manager.c
 
 OBJS := $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 

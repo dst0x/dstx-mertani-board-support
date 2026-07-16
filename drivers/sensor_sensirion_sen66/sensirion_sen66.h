@@ -3,6 +3,10 @@
 * 
 * Created on: 14 June 2026
 *     Author: DST0x
+* 
+* Modified: 15 July 2026
+*     Integrated with sensor_manager for centralized control
+* 
 * Register map:
 *   [0] PM1.0  ÷10 µg/m³
 *   [1] PM2.5  ÷10 µg/m³
@@ -13,6 +17,13 @@
 *   [6] VOC    ÷10
 *   [7] NOx    ÷10
 *   [8] CO2    ppm
+* 
+* Integration Notes:
+*   - This driver is designed to work with sensor_manager middleware
+*   - Enable/disable via SENSOR_ENABLE_SEN66 in sensor_manager.h
+*   - Automatic error recovery and retry handled by sensor_manager
+*   - Zero value filtering applied by sensor_manager when enabled
+*   - Periodic reset scheduled by sensor_manager
 */
 
 #ifndef SENSIRION_SEN66_H
@@ -38,7 +49,7 @@
 #define SEN66_READ_DELAY_MS    (20U)
 #define SEN66_STOP_DELAY_MS    (1400U)
 #define SEN66_RESET_DELAY_MS   (1200U)
-#define SEN66_WARMUP_MS        (60000UL)
+#define SEN66_WARMUP_MS        (500UL)
 
 #define SEN66_MEAS_PAYLOAD_BYTES (27U)
 #define SEN66_NC_PAYLOAD_BYTES   (15U)
@@ -99,5 +110,26 @@ status_e sensirion_sen66_reset(sen66_ctx_s *ctx);
 sen66_state_e sensirion_sen66_get_state(const sen66_ctx_s *ctx);
 uint8_t sensirion_sen66_calc_crc(const uint8_t data[2U]);
 bool sensirion_sen66_is_data_ready(sen66_ctx_s *ctx);
+
+/* Utility functions for sensor_manager integration */
+static inline bool sensirion_sen66_has_valid_data(const sen66_ctx_s *ctx) {
+    return (ctx != NULL) && ctx->has_valid_data;
+}
+
+static inline bool sensirion_sen66_is_warming_up(const sen66_ctx_s *ctx) {
+    return (ctx != NULL) && (ctx->state == SEN66_STATE_WARMING_UP);
+}
+
+static inline bool sensirion_sen66_is_running(const sen66_ctx_s *ctx) {
+    return (ctx != NULL) && (ctx->state == SEN66_STATE_RUNNING);
+}
+
+static inline bool sensirion_sen66_has_error(const sen66_ctx_s *ctx) {
+    return (ctx != NULL) && (ctx->state == SEN66_STATE_ERROR);
+}
+
+static inline uint8_t sensirion_sen66_get_error_count(const sen66_ctx_s *ctx) {
+    return (ctx != NULL) ? ctx->error_count : 0U;
+}
 
 #endif /* SENSIRION_SEN66_H */

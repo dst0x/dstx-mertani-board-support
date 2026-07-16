@@ -1,9 +1,14 @@
 /*
-* @file main.c
-* 
-* Created on: 14 June 2026
-*     Author: DST0x
-*/
+ * @file main_with_managers.c
+ * @brief Example main.c using sensor_manager and uart_manager
+ * 
+ * Created on: 15 July 2026
+ *     Author: DST0x
+ * 
+ * Description:
+ *   This is an example of how to use the new sensor_manager and uart_manager
+ *   modules. Copy this to main.c to use the new architecture.
+ */
 
 #include <string.h>
 
@@ -15,19 +20,22 @@
 #include "bsp/bsp_uart.h"
 
 #include "middleware/modbus/modbus_slave.h"
+#include "middleware/sensor_manager.h"
+#include "middleware/uart_manager.h"
 #include "common/common_types.h"
 
 #include "drivers/sensor_sensirion_sen66/sensirion_sen66.h"
 #include "drivers/sensor_infwin_co/infwin_co_sensor.h"
 
-#define SENSOR_POLL_MS   (1000U)
-#define SENSOR_RETRY_MS  (5000U)
 #define LED_BLINK_OK_MS  (500U)
 #define LED_BLINK_ERR_MS (100U)
 #define DEBUG_PRINT_MS   (2000U)
 
-static sen66_ctx_s g_aqs_sensor         = {0};
-static modbus_slave_ctx_s g_modbus  = {0};
+/* Global contexts */
+static sen66_ctx_s g_aqs_sensor = {0};
+static modbus_slave_ctx_s g_modbus = {0};
+static sensor_manager_ctx_s g_sensor_manager = {0};
+static uart_manager_ctx_s g_uart_manager = {0};
 
 #ifdef USART1_MODBUS_MODE
     static co_ctx_s g_co_sensor = {0};
@@ -46,176 +54,180 @@ static modbus_slave_ctx_s g_modbus  = {0};
         debug_print_fixed("PM4.0:", (int32_t)d->pm4_0, 10, 1, " | ");
         debug_print_fixed("PM10:", (int32_t)d->pm10, 10, 1, " ug/m3 | ");
 
-        debug_print_fixed("Humidity:", (int32_t)d->rh, 10, 1, "%%RH | ");
+        debug_print_fixed("Humidity:", (int32_t)d->rh, 10, 1, "RH | ");
         debug_print_fixed("Temperature:", (int32_t)d->temp, 10, 1, "C | ");
 
         debug_print_fixed("VOC:", (int32_t)d->voc, 10, 1, " | ");
         debug_print_fixed("NOx:", (int32_t)d->nox, 10, 1, " | ");
-        debug_print_fixed("CO2:", (int32_t)d->co2_ppm, 1, 0, " ppm\r\n");
+        debug_print_fixed("CO2:", (int32_t)d->co2_ppm, 1, 0, " ppm");
+        
+        /* Debug CO2 validity */
+        if (!d->co2_valid) {
+            bsp_debug_write_str(" [UNAVAIL]");
+        }
+        bsp_debug_write_str(" |\r\n");
+    }
+
+    static void debug_print_status(void) {
+        sensor_status_e sen66_status = sensor_manager_get_status(&g_sensor_manager, 0);
+        bsp_debug_write_str("[STATUS] SEN66: ");
+        
+        switch (sen66_status) {
+            case SENSOR_STATUS_RUNNING:
+                bsp_debug_write_str("RUNNING");
+                break;
+            case SENSOR_STATUS_WARMING_UP:
+                bsp_debug_write_str("WARMING_UP");
+                break;
+            case SENSOR_STATUS_ERROR:
+                bsp_debug_write_str("ERROR");
+                break;
+            case SENSOR_STATUS_INITIALIZING:
+                bsp_debug_write_str("INITIALIZING");
+                break;
+            default:
+                bsp_debug_write_str("UNKNOWN");
+                break;
+        }
+        
+        uint32_t errors, zeros;
+        sensor_manager_get_stats(&g_sensor_manager, 0, &errors, &zeros);
+        bsp_debug_write_str(" | Errors: ");
+        bsp_debug_write_int("", (int32_t)errors, "");
+        bsp_debug_write_str(" | Zeros: ");
+        bsp_debug_write_int("", (int32_t)zeros, "|\r\n");
     }
 #endif
 
-static void modbus_service(void){
+static void modbus_service(void) {
     uint16_t tx_len = 0U;
-    while(bsp_rs485_rx_count() > 0U){
+    while(bsp_rs485_rx_count() > 0U) {
         uint8_t byte = bsp_rs485_rx_get();
         uint32_t tick = bsp_systick_get_tick();
         modbus_slave_rx_byte(&g_modbus, byte, tick);
     }
 
-    if((g_modbus.rx_len > 0U) && bsp_systick_elapsed(g_modbus.last_rx_tick, MB_FRAME_TIMEOUT_MS)){
+    if((g_modbus.rx_len > 0U) && bsp_systick_elapsed(g_modbus.last_rx_tick, MB_FRAME_TIMEOUT_MS)) {
         #ifdef USART1_MODBUS_MODE
             modbus_slave_process(&g_modbus, &g_aqs_sensor, &g_co_sensor, &tx_len);
         #else
             modbus_slave_process(&g_modbus, &g_aqs_sensor, &tx_len);
         #endif
 
-        if(tx_len > 0U){
+        if(tx_len > 0U) {
             bsp_systick_delay_ms(2U);
             bsp_rs485_send(g_modbus.tx_buf, tx_len);
         }
     }
 }
 
-int main(void){
-    status_e status;
-    uint32_t last_poll_tick  = 0U;
+int main(void) {
     uint32_t last_led_tick   = 0U;
     uint32_t last_dbg_tick   = 0U;
-    uint32_t last_retry_tick = 0U;
     bool     led_state       = false;
-    bool     sensor_ok       = false;
 
-    bsp_systick_init();
-    (void)bsp_clock_init();
+    /* Initialize BSP layer - Clock MUST be first! */
+    bsp_systick_init();          /* Configure SysTick with correct clock */
+    (void)bsp_clock_init();      /* Setup PLL to 64MHz */
     bsp_gpio_init();
-
-    #ifdef USART1_DEBUG_MODE
-        bsp_gpio_set_comm_mode(COMM_MODE_TTL);
-        bsp_debug_init();
-        bsp_systick_delay_ms(10U);
-        bsp_debug_write_str("\r\n=================================\r\n");
-        bsp_debug_write_str("MERTANI BSP V1.0\r\n");
-        bsp_debug_write_str("BE PART OF NATURE PROTECT THE FUTURE\r\n");
-        bsp_debug_write_str("\r\n=================================\r\n");
-    #endif
-
-    #ifdef USART1_MODBUS_MODE
-        bsp_gpio_set_comm_mode(COMM_MODE_RS485);
-    #endif
-
     bsp_i2c_init();
-    bsp_rs485_init();
     bsp_iwdg_init();
+
+    /* Initialize UART Manager - handles all UART configurations */
+    (void)uart_manager_init(&g_uart_manager);
+
+    /* Initialize Modbus */
     modbus_slave_init(&g_modbus);
 
-    {
-        uint8_t attempt;
-        status = STATUS_ERR_GENERIC;
-        for (attempt = 0U; attempt < 3U; attempt++)
-        {
-            bsp_iwdg_refresh();
-            status = sensirion_sen66_init(&g_aqs_sensor);
-            if (status == STATUS_OK){
-                break;
-            }
-        #ifdef USART1_DEBUG_MODE
-            bsp_debug_write_str("SEN66 init failed, retrying...\r\n");
-        #endif
-
-            bsp_systick_delay_ms(500U);
-        }
-        bsp_iwdg_refresh();
-
-        if (status == STATUS_OK){
-            status = sensirion_sen66_start_measurement(&g_aqs_sensor);
-            if (status == STATUS_OK){
-                sensor_ok = true;
-                #ifdef USART1_DEBUG_MODE
-                    bsp_debug_write_str("SEN66 OK. Warming up 60s...\r\n");
-                #endif
-            }
-            #ifdef USART1_DEBUG_MODE
-                else { bsp_debug_write_str("SEN66 start failed.\r\n"); }
-            #endif
-        }
-        #ifdef USART1_DEBUG_MODE
-            else { bsp_debug_write_str("SEN66 not detected.\r\n"); }
-        #endif
-    }
-
- 
-    #ifdef USART1_SENSOR_MODE
-        {
-            status = sensor_co_init(&g_co_sensor);
-            (void)status;
-        }
+    /* Initialize Sensor Manager */
+    #if SENSOR_ENABLE_SEN66
+        g_sensor_manager.sen66_driver = &g_aqs_sensor;
     #endif
 
-
-    last_poll_tick  = bsp_systick_get_tick();
-    last_led_tick   = bsp_systick_get_tick();
-    last_dbg_tick   = bsp_systick_get_tick();
-    last_retry_tick = bsp_systick_get_tick();
-
-    for (;;){
-        uint32_t now = bsp_systick_get_tick();
-        if (sensor_ok && bsp_systick_elapsed(last_poll_tick, SENSOR_POLL_MS)){
-            last_poll_tick = now;
-            if (sensirion_sen66_is_data_ready(&g_aqs_sensor)){
-                status = sensirion_sen66_poll(&g_aqs_sensor);
-                if ((status != STATUS_OK) && (status != STATUS_NOT_READY) && (status != STATUS_ERR_STATE)){
-                #ifdef USART1_DEBUG_MODE
-                    bsp_debug_write_str("SEN66 offline.\r\n");
-                #endif
-                    sensor_ok = false;
-                    last_retry_tick = now;
-                    (void)memset(&g_aqs_sensor.data, 0, sizeof(g_aqs_sensor.data));
-                    g_aqs_sensor.data_fresh = false;
-                }
-            }
-        }
-
-        if (!sensor_ok && bsp_systick_elapsed(last_retry_tick, SENSOR_RETRY_MS)){
-            last_retry_tick = now;
-            bsp_iwdg_refresh();
-            status = sensirion_sen66_init(&g_aqs_sensor);
-            if (status == STATUS_OK){
-                status = sensirion_sen66_start_measurement(&g_aqs_sensor);
-                if (status == STATUS_OK){
-                    sensor_ok = true;
-                    last_poll_tick = now;
-                #ifdef USART1_DEBUG_MODE
-                    bsp_debug_write_str("SEN66 reconnected.\r\n");
-                #endif
-                }
-            }
-            bsp_iwdg_refresh();
-        }
-
+    #if SENSOR_ENABLE_INFWIN_CO
         #ifdef USART1_MODBUS_MODE
-                (void)sensor_co_poll(&g_co_sensor);
+            g_sensor_manager.co_driver = &g_co_sensor;
+            bsp_modbus_set_co_sensor_ptr(&g_co_sensor);  /* Register CO sensor for UART RX interrupt */
         #endif
+    #endif
+
+    (void)sensor_manager_init(&g_sensor_manager);
+
+    #ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("\r\n[MAIN] System initialized successfully.\r\n");
+        bsp_debug_write_str("[MAIN] Sensors configured:\r\n");
+        #if SENSOR_ENABLE_SEN66
+            bsp_debug_write_str("  - SEN66 Air Quality Sensor\r\n");
+        #endif
+        #if SENSOR_ENABLE_INFWIN_CO
+            bsp_debug_write_str("  - Infwin CO Sensor\r\n");
+        #endif
+    #endif
+
+    last_led_tick = bsp_systick_get_tick();
+    last_dbg_tick = bsp_systick_get_tick();
+
+    /* Main loop */
+    for (;;) {
+        uint32_t now = bsp_systick_get_tick();
+
+        /* Poll all sensors through sensor manager */
+        (void)sensor_manager_poll(&g_sensor_manager);
+
+        /* Direct CO sensor polling - bypass sensor_manager */
+        #if SENSOR_ENABLE_INFWIN_CO
+            #ifdef USART1_MODBUS_MODE
+                (void)sensor_co_poll(&g_co_sensor);
+            #endif
+        #endif
+
+        /* Service Modbus communication */
         modbus_service();
+
+        /* LED blinking based on system status */
         {
-            uint32_t blink = (g_aqs_sensor.state == SEN66_STATE_ERROR) ? LED_BLINK_ERR_MS : LED_BLINK_OK_MS;
-            if (bsp_systick_elapsed(last_led_tick, blink)){
+            sensor_status_e sen66_status = sensor_manager_get_status(&g_sensor_manager, 0);
+            sensor_status_e co_status = SENSOR_STATUS_DISABLED;
+            
+            #if SENSOR_ENABLE_INFWIN_CO
+                #ifdef USART1_MODBUS_MODE
+                    co_status = sensor_manager_get_status(&g_sensor_manager, 1);
+                #endif
+            #endif
+            
+            /* Show error if ANY sensor is in error state */
+            bool any_error = (sen66_status == SENSOR_STATUS_ERROR) || (co_status == SENSOR_STATUS_ERROR);
+            uint32_t blink = any_error ? LED_BLINK_ERR_MS : LED_BLINK_OK_MS;
+            
+            if (bsp_systick_elapsed(last_led_tick, blink)) {
                 last_led_tick = now;
                 led_state = !led_state;
-                if (led_state) { bsp_gpio_led_on();  }
-                else           { bsp_gpio_led_off(); }
+                if (led_state) { 
+                    bsp_gpio_led_on();
+                } else {
+                    bsp_gpio_led_off();
+                }
             }
         }
 
+        /* Debug printing */
         #ifdef USART1_DEBUG_MODE
-            if (bsp_systick_elapsed(last_dbg_tick, DEBUG_PRINT_MS)){
-            last_dbg_tick = now;
-            if (g_aqs_sensor.data_fresh) { debug_print_sensor(&g_aqs_sensor); }
+            if (bsp_systick_elapsed(last_dbg_tick, DEBUG_PRINT_MS)) {
+                last_dbg_tick = now;
+                
+                if (g_aqs_sensor.data_fresh) {
+                    debug_print_sensor(&g_aqs_sensor);
                 }
+                
+                debug_print_status();
+            }
         #else
             (void)last_dbg_tick;
         #endif
+
+        /* Refresh watchdog */
         bsp_iwdg_refresh();
     }
+
     return 0;
 }

@@ -35,7 +35,7 @@ status_e bsp_clock_init(void){
     RCC->PLLCFGR = (RCC_PLLCFGR_PLLSRC_HSI) |
                    (BSP_PLLM << RCC_PLLCFGR_PLLM_Pos) |
                    (BSP_PLLN << RCC_PLLCFGR_PLLN_Pos) |
-                   (BSP_PLLR << RCC_PLLCFGR_PLLR_Pos) |
+                   ((BSP_PLLR - 2U) << RCC_PLLCFGR_PLLR_Pos) |  /* PLLR: 0=/2, 1=/3, 2=/4, ... */
                    RCC_PLLCFGR_PLLREN;
 
     SET_BIT(RCC->CR, RCC_CR_PLLON);

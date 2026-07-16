@@ -3,6 +3,17 @@
 * 
 * Created on: 14 June 2026
 *     Author: DST0x
+* 
+* Modified: 15 July 2026
+*     Integrated with sensor_manager for centralized control
+* 
+* Integration Notes:
+*   - This driver is designed to work with sensor_manager middleware
+*   - Enable/disable via SENSOR_ENABLE_INFWIN_CO in sensor_manager.h
+*   - Requires USART1_MODBUS_MODE to be defined for operation
+*   - Automatic error recovery and retry handled by sensor_manager
+*   - Zero value filtering applied by sensor_manager when enabled
+*   - Communication via Modbus RTU protocol over UART
 */
 
 #ifndef INFWIN_CO_SENSOR_H
@@ -20,12 +31,13 @@
 #include "bsp/bsp_systick.h"
 #include "../../middleware/modbus/modbus_crc.h"
 
-#define INFWIN_CO_SENSOR_ADDR           (0x62U)
+#define INFWIN_CO_SENSOR_ADDR           (0x01U)
+#define INFWIN_CO_SENSOR_ADDR_ALT       (0x62U)
 #define INFWIN_CO_REQUEST_INTERVAL_MS   (1000U)
-#define INFWIN_CO_RESPONSE_TIMEOUT_MS   (500U)
+#define INFWIN_CO_RESPONSE_TIMEOUT_MS   (1500U)
 #define INFWIN_CO_MAX_ERRORS            (5U)
 #define INFWIN_CO_REQUEST_LEN           (8U)
-#define INFWIN_CO_RESPONSE_LEN          (7U)
+#define INFWIN_CO_MAX_RESPONSE_LEN      (64U)
 
 #define INFWIN_CO_UNAVAIL_U16           (0xFFFEU)
 #define INFWIN_CO_INIT_U16              (0xFFFEU)
@@ -63,8 +75,8 @@ typedef struct co_ctx_tag{
     bool       has_valid_data;
     bool       waiting_response;
     
-    uint8_t    rx_buf[INFWIN_CO_RESPONSE_LEN];
-    uint8_t    last_response[INFWIN_CO_RESPONSE_LEN];
+    uint8_t    rx_buf[INFWIN_CO_MAX_RESPONSE_LEN];
+    uint8_t    last_response[INFWIN_CO_MAX_RESPONSE_LEN];
 } co_ctx_s;
 
 #ifdef USART1_MODBUS_MODE
@@ -75,5 +87,23 @@ typedef struct co_ctx_tag{
 
     void sensor_co_rx_byte(co_ctx_s *ctx, uint8_t byte);
     const uint8_t* sensor_co_get_last_resp(const co_ctx_s *ctx);
+    
+    /* Reset/Recovery functions for sensor_manager integration */
+    static inline status_e sensor_co_reset(co_ctx_s *ctx) {
+        if (ctx == NULL) return STATUS_ERR_PARAM;
+        ctx->state = CO_STATE_UNINIT;
+        ctx->error_count = 0;
+        ctx->waiting_response = false;
+        ctx->rx_index = 0;
+        return sensor_co_init(ctx);
+    }
+    
+    static inline bool sensor_co_has_valid_data(const co_ctx_s *ctx) {
+        return (ctx != NULL) && ctx->has_valid_data;
+    }
+    
+    static inline uint16_t sensor_co_get_value(const co_ctx_s *ctx) {
+        return (ctx != NULL) ? ctx->data.co_value : 0U;
+    }
 #endif
 #endif

@@ -3,14 +3,21 @@
 * 
 * Created on: 14 June 2026
 *     Author: DST0x
+* 
+* Modified: 15 July 2026
+*     Integrated with sensor_manager for centralized control
 */
 
 #include "drivers/sensor_infwin_co/infwin_co_sensor.h"
 
 #ifdef USART1_MODBUS_MODE
 
+#ifdef USART1_DEBUG_MODE
+#include "bsp/bsp_uart.h"
+#endif
+
 static void request_command(uint8_t cmd[INFWIN_CO_REQUEST_LEN]){
-    cmd[0U] = 0x62U;
+    cmd[0U] = INFWIN_CO_SENSOR_ADDR_ALT;
     cmd[1U] = 0x03U;
     cmd[2U] = 0x00U;
     cmd[3U] = 0x03U;
@@ -22,9 +29,9 @@ static void request_command(uint8_t cmd[INFWIN_CO_REQUEST_LEN]){
     cmd[7U] = (uint8_t)((crc >> 8U) & 0x00FFU);
 }
 
-static bool validate_response_crc(const uint8_t *buf){
-    uint16_t crc_calc = modbus_crc16(buf, (uint16_t)(INFWIN_CO_RESPONSE_LEN - 2U));
-    uint16_t crc_rx = (uint16_t)buf[INFWIN_CO_RESPONSE_LEN - 2U] | ((uint16_t)buf[INFWIN_CO_RESPONSE_LEN - 1U] << 8U);
+static bool validate_response_crc(const uint8_t *buf, uint16_t len){
+    uint16_t crc_calc = modbus_crc16(buf, (uint16_t)(len - 2U));
+    uint16_t crc_rx = (uint16_t)buf[len - 2U] | ((uint16_t)buf[len - 1U] << 8U);
     return (crc_calc == crc_rx);
 }
 
@@ -49,8 +56,16 @@ status_e sensor_co_init(co_ctx_s *ctx){
     (void)memset(ctx, 0, sizeof(co_ctx_s));
     bsp_modbus_init();
 
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[CO_SENSOR] Initializing CO sensor...\r\n");
+#endif
+
     ctx->state      = CO_STATE_WARMING_UP;
     ctx->last_request_tick  = bsp_systick_get_tick();
+
+#ifdef USART1_DEBUG_MODE
+    bsp_debug_write_str("[CO_SENSOR] Initialization successful\r\n");
+#endif
 
     return STATUS_OK;
 }
@@ -81,6 +96,9 @@ status_e sensor_co_poll(co_ctx_s *ctx){
     uint32_t now = bsp_systick_get_tick();
     if(ctx->state == CO_STATE_WARMING_UP){
         ctx->state = CO_STATE_RUNNING;
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[CO_SENSOR] Warmup complete, entering running state\r\n");
+#endif
     }
 
     if (!ctx->waiting_response &&
@@ -96,44 +114,57 @@ status_e sensor_co_poll(co_ctx_s *ctx){
             ctx->waiting_response = false;
             ctx->rx_index           = 0U;
             ctx->data.timeout_count++;
+#ifdef USART1_DEBUG_MODE
+            bsp_debug_write_str("[CO_SENSOR] Response timeout\r\n");
+#endif
             return handle_error(ctx, STATUS_ERR_TIMEOUT);
     }
 
     
-    if (ctx->waiting_response && (ctx->rx_index >= INFWIN_CO_RESPONSE_LEN)){
-        ctx->waiting_response = false;
-
-        if (!validate_response_crc(ctx->rx_buf)){
+    if (ctx->waiting_response && (ctx->rx_index >= 3U)){
+        uint8_t byte_count = ctx->rx_buf[2U];
+        uint16_t expected_len = (uint16_t)(5U + byte_count);
+        if (expected_len > INFWIN_CO_MAX_RESPONSE_LEN) {
+            ctx->waiting_response = false;
             ctx->rx_index = 0U;
             ctx->data.crc_error_count++;
-            return handle_error(ctx, STATUS_ERR_CRC);
-        }
-
-        if ((ctx->rx_buf[0U] != INFWIN_CO_SENSOR_ADDR) || (ctx->rx_buf[1U] != 0x03U)){
-            ctx->rx_index = 0U;
+#ifdef USART1_DEBUG_MODE
+            bsp_debug_write_str("[CO_SENSOR] Response too long\r\n");
+#endif
             return handle_error(ctx, STATUS_ERR_GENERIC);
         }
 
-        ctx->data.response_count++;
+        if (ctx->rx_index >= expected_len) {
+            ctx->waiting_response = false;
 
-        (void)memcpy(ctx->last_response, ctx->rx_buf, INFWIN_CO_RESPONSE_LEN);
+            if (!validate_response_crc(ctx->rx_buf, expected_len)){
+                ctx->rx_index = 0U;
+                ctx->data.crc_error_count++;
+#ifdef USART1_DEBUG_MODE
+                bsp_debug_write_str("[CO_SENSOR] CRC error\r\n");
+#endif
+                return handle_error(ctx, STATUS_ERR_CRC);
+            }
 
-        /* Parse Response */
-        /* Option 1: Standard Big-Endian (MSB first) — DEFAULT */
-        uint16_t co_raw = BYTES_TO_U16(ctx->rx_buf[3U], ctx->rx_buf[4U]);
-        
-        /* Option 2: Little-Endian (LSB first) */
-        // uint16_t co_raw = BYTES_TO_U16(ctx->rx_buf[4U], ctx->rx_buf[3U]);
-        
-        /* Option 3: Scaled value (÷10) */
-        // uint16_t co_raw = BYTES_TO_U16(ctx->rx_buf[3U], ctx->rx_buf[4U]);
-        // co_raw = co_raw * 10U;  /* If sensor sends 0.1 ppm units */
-        
-        /* Option 4: Scaled value (×10) */
-        // uint16_t co_raw = BYTES_TO_U16(ctx->rx_buf[3U], ctx->rx_buf[4U]);
-        // co_raw = co_raw / 10U;  /* If sensor sends in 0.1 ppm resolution */
-        
-        ctx->data.co_value = co_raw;
+            if (((ctx->rx_buf[0U] != INFWIN_CO_SENSOR_ADDR) && (ctx->rx_buf[0U] != INFWIN_CO_SENSOR_ADDR_ALT)) || (ctx->rx_buf[1U] != 0x03U)){
+                ctx->rx_index = 0U;
+#ifdef USART1_DEBUG_MODE
+                bsp_debug_write_str("[CO_SENSOR] Invalid response address or function code\r\n");
+#endif
+                return handle_error(ctx, STATUS_ERR_GENERIC);
+            }
+
+            ctx->data.response_count++;
+
+            (void)memcpy(ctx->last_response, ctx->rx_buf, expected_len);
+
+            /* Parse the first register value from the dynamic payload */
+            uint16_t co_raw = 0U;
+            if (byte_count >= 2U) {
+                co_raw = BYTES_TO_U16(ctx->rx_buf[3U], ctx->rx_buf[4U]);
+            }
+            
+            ctx->data.co_value = co_raw;
         ctx->data.valid  = true;
         apply_last_data_valid(ctx);
         if (ctx->data.co_value != 0U){
@@ -145,8 +176,14 @@ status_e sensor_co_poll(co_ctx_s *ctx){
         ctx->error_count = 0U;
         ctx->rx_index    = 0U;
 
+#ifdef USART1_DEBUG_MODE
+        bsp_debug_write_str("[CO_SENSOR] Data received: ");
+        bsp_debug_write_int("", (int32_t)ctx->data.co_value, " ppm\r\n");
+#endif
+
         return STATUS_OK;
-    }
+        }  /* end if rx_index >= expected_len */
+    }  /* end if waiting_response && rx_index >= 3 */
 
     return STATUS_NOT_READY;
 }
@@ -166,7 +203,7 @@ void sensor_co_rx_byte(co_ctx_s *ctx, uint8_t byte){
     if(!ctx->waiting_response){
         return;
     }
-    if(ctx->rx_index < INFWIN_CO_RESPONSE_LEN){
+    if(ctx->rx_index < INFWIN_CO_MAX_RESPONSE_LEN){
         ctx->rx_buf[ctx->rx_index] = byte;
         ctx->rx_index++;
     }

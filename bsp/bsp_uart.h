@@ -2,21 +2,13 @@
 #define BSP_UART_H
 
 #include "common/common_types.h"
+#include "middleware/uart_manager.h"  /* Import USART1_MODE configuration */
 
 #define DEBUG_BUFFER_SIZE   (256U)
-#define MODBUS_BUFFER_SIZE  (64U)
+/* MODBUS_BUFFER_SIZE defined in uart_manager.h */
 #define RS485_BUFFER_SIZE   (16U)
 
-#define USART1_DEBUG_MODE
-/* #define USART1_MODBUS_MODE */
-
-#if defined(USART1_SENSOR_MODE) && defined(USART1_DEBUG_MODE)
-    #error "Cannot enable both USART1_SENSOR_MODE and USART1_DEBUG_MODE simultaneously!"
-#endif
-
-#if !defined(USART1_SENSOR_MODE) && !defined(USART1_DEBUG_MODE)
-    #error "Must define either USART1_SENSOR_MODE or USART1_DEBUG_MODE!"
-#endif
+/* USART1 mode is configured in middleware/uart_manager.h */
 
 /* USART1 Debug Mode */
 #ifdef USART1_DEBUG_MODE
@@ -30,16 +22,39 @@
 
 /* USART1 MODBUS Mode */
 #ifdef USART1_MODBUS_MODE
+    /* Forward declaration */
+    struct co_ctx_tag;
+    
     void bsp_modbus_init(void);
     void bsp_modbus_rx_flush(void);
     uint16_t bsp_modbus_write(const uint8_t *data, uint16_t len);
     uint16_t bsp_modbus_rx_count(void);
     uint8_t bsp_modbus_rx_get(void);
+    
+    /* Set CO sensor context pointer for RX interrupt */
+    void bsp_modbus_set_co_sensor_ptr(struct co_ctx_tag *ptr);
 #endif /* USART1 MODBUS Mode */
 
 /* USART2 RS485 Mode */
 void bsp_usart1_irq_handler(void);
 void bsp_rs485_init(void);
+
+/**
+ * @brief Reconfigure USART2 baudrate, parity, and stop bits at runtime.
+ *
+ * Disables USART2, applies the new configuration, then re-enables it.
+ * Safe to call from the main loop (not from an ISR).
+ * The USART2 RX buffer is flushed before returning.
+ *
+ * @param baudrate  Baud rate in bps. Supported: 1200, 2400, 4800, 9600,
+ *                  19200, 38400, 57600, 115200. Other values are rejected
+ *                  and the function returns STATUS_ERR_PARAM.
+ * @param parity    0 = None, 1 = Even, 2 = Odd.
+ * @param stopbits  1 = 1 stop bit, 2 = 2 stop bits.
+ * @return STATUS_OK on success, STATUS_ERR_PARAM if any argument is invalid.
+ */
+status_e bsp_rs485_reinit(uint32_t baudrate, uint8_t parity, uint8_t stopbits);
+
 void bsp_rs485_send(const uint8_t *data, uint16_t len);
 void bsp_rs485_rx_flush(void);
 void bsp_rs485_usart2_irq_handler(void);

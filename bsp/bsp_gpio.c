@@ -1,4 +1,5 @@
 #include "bsp/bsp_gpio.h"
+#include "bsp/bsp_uart.h"
 #include "stm32g0xx.h"
 
 #define PIN_MODE_AF(p)     (2UL << ((p) * 2U))
@@ -32,11 +33,18 @@ void bsp_gpio_init(void)
     SET_BIT(RCC->IOPENR, RCC_IOPENR_GPIOAEN | RCC_IOPENR_GPIOBEN);
     (void)RCC->IOPENR;
 
-    /* SP4T DeMux Control — PA0/PA1, push-pull output, start 11 (TTL mode for debug) */
+    /* SP4T DeMux Control — PA0/PA1, push-pull output */
     GPIOA->MODER  &= ~(PIN_MODE_MASK(PIN_DEMUX_A) | PIN_MODE_MASK(PIN_DEMUX_B));
     GPIOA->MODER  |=  (PIN_MODE_OUT(PIN_DEMUX_A)  | PIN_MODE_OUT(PIN_DEMUX_B));
     GPIOA->OTYPER &= ~(PIN_OT_OD(PIN_DEMUX_A)     | PIN_OT_OD(PIN_DEMUX_B));
-    GPIOA->ODR    |=  ((1UL << PIN_DEMUX_A) | (1UL << PIN_DEMUX_B));  /* 11 = TTL (debug mode) */
+
+#ifdef USART1_MODBUS_MODE
+    /* USART1 = RS485 → DeMux 00 routes PB6/PB7 to CO sensor */
+    GPIOA->ODR    &= ~((1UL << PIN_DEMUX_A) | (1UL << PIN_DEMUX_B));  /* 00 = RS485 */
+#else
+    /* USART1 = TTL debug → DeMux 11 routes PB6/PB7 to TTL */
+    GPIOA->ODR    |=  ((1UL << PIN_DEMUX_A) | (1UL << PIN_DEMUX_B));  /* 11 = TTL */
+#endif
 
     /* USART2 TX/RX — PA2/PA3, AF1, push-pull (RS485) */
     GPIOA->MODER   &= ~(PIN_MODE_MASK(PIN_USART2_TX) | PIN_MODE_MASK(PIN_USART2_RX));
