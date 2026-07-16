@@ -26,6 +26,7 @@
 
 #include "drivers/sensor_sensirion_sen66/sensirion_sen66.h"
 #include "drivers/sensor_infwin_co/infwin_co_sensor.h"
+#include "drivers/sensor_pmsx003/pmsx003_sensor.h"
 
 #define LED_BLINK_OK_MS  (500U)
 #define LED_BLINK_ERR_MS (100U)
@@ -39,6 +40,10 @@ static uart_manager_ctx_s g_uart_manager = {0};
 
 #ifdef USART1_MODBUS_MODE
     static co_ctx_s g_co_sensor = {0};
+#endif
+
+#ifdef USART1_SENSOR_MODE
+    static pmsx003_ctx_s g_pmsx003_sensor = {0};
 #endif
 
 #ifdef USART1_DEBUG_MODE
@@ -108,8 +113,12 @@ static void modbus_service(void) {
     }
 
     if((g_modbus.rx_len > 0U) && bsp_systick_elapsed(g_modbus.last_rx_tick, MB_FRAME_TIMEOUT_MS)) {
-        #ifdef USART1_MODBUS_MODE
+        #if defined(USART1_MODBUS_MODE) && defined(USART1_SENSOR_MODE)
+            modbus_slave_process(&g_modbus, &g_aqs_sensor, &g_co_sensor, &g_pmsx003_sensor, &tx_len);
+        #elif defined(USART1_MODBUS_MODE)
             modbus_slave_process(&g_modbus, &g_aqs_sensor, &g_co_sensor, &tx_len);
+        #elif defined(USART1_SENSOR_MODE)
+            modbus_slave_process(&g_modbus, &g_aqs_sensor, &g_pmsx003_sensor, &tx_len);
         #else
             modbus_slave_process(&g_modbus, &g_aqs_sensor, &tx_len);
         #endif
@@ -151,6 +160,13 @@ int main(void) {
         #endif
     #endif
 
+    #if SENSOR_ENABLE_PMSX003
+        #ifdef USART1_SENSOR_MODE
+            g_sensor_manager.pmsx003_driver = &g_pmsx003_sensor;
+            bsp_sensor_set_pmsx003_ptr(&g_pmsx003_sensor);  /* Register PMSX003 sensor for UART RX interrupt */
+        #endif
+    #endif
+
     (void)sensor_manager_init(&g_sensor_manager);
 
     #ifdef USART1_DEBUG_MODE
@@ -161,6 +177,9 @@ int main(void) {
         #endif
         #if SENSOR_ENABLE_INFWIN_CO
             bsp_debug_write_str("  - Infwin CO Sensor\r\n");
+        #endif
+        #if SENSOR_ENABLE_PMSX003
+            bsp_debug_write_str("  - PMSX003 Particulate Matter Sensor\r\n");
         #endif
     #endif
 

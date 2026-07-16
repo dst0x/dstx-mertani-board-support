@@ -1,14 +1,8 @@
 /*
  * @file sensor_manager.h
- * @brief Centralized Sensor Configuration and Management
  * 
  * Created on: 15 July 2026
  *     Author: DST0x
- * 
- * Description:
- *   This module provides centralized configuration and management for all sensors
- *   in the system. Users can enable/disable sensors and configure filtering,
- *   reset intervals, and retry logic from this single interface.
  */
 
 #ifndef SENSOR_MANAGER_H
@@ -20,6 +14,7 @@
 
 #define SENSOR_ENABLE_SEN66         1   /* Sensirion SEN66 Air Quality Sensor */
 #define SENSOR_ENABLE_INFWIN_CO     1   /* Infwin CO Sensor */
+#define SENSOR_ENABLE_PMSX003       1   /* Plantower PMSX003 Particulate Matter Sensor */
 
 #define SENSOR_POLL_INTERVAL_MS     1000U   /* Normal polling interval */
 #define SENSOR_RETRY_INTERVAL_MS    5000U   /* Retry interval after error */
@@ -31,6 +26,7 @@
 
 #define SENSOR_SEN66_WARMUP_MS      30000U  /* SEN66 warmup time: 30 seconds (default 60s) */
 #define SENSOR_CO_WARMUP_MS         30000U  /* CO sensor warmup time */
+#define SENSOR_PMSX003_WARMUP_MS    30000U  /* PMSX003 sensor warmup time */
 
 typedef enum {
     SENSOR_STATUS_UNINITIALIZED = 0,
@@ -63,6 +59,11 @@ typedef struct {
     void *co_driver;     /* Pointer to co_ctx_s */
 #endif
 
+#if SENSOR_ENABLE_PMSX003
+    sensor_common_ctx_s pmsx003_ctx;
+    void *pmsx003_driver;  /* Pointer to pmsx003_ctx_s */
+#endif
+
     uint32_t global_tick;
     bool initialized;
 } sensor_manager_ctx_s;
@@ -85,7 +86,7 @@ status_e sensor_manager_poll(sensor_manager_ctx_s *ctx);
 /**
  * @brief Get status of a specific sensor
  * @param ctx Pointer to sensor manager context
- * @param sensor_id Sensor identifier (0=SEN66, 1=CO)
+ * @param sensor_id Sensor identifier (0=SEN66, 1=CO, 2=PMSX003)
  * @return Current sensor status
  */
 sensor_status_e sensor_manager_get_status(sensor_manager_ctx_s *ctx, uint8_t sensor_id);
@@ -93,7 +94,7 @@ sensor_status_e sensor_manager_get_status(sensor_manager_ctx_s *ctx, uint8_t sen
 /**
  * @brief Force reset of a specific sensor
  * @param ctx Pointer to sensor manager context
- * @param sensor_id Sensor identifier (0=SEN66, 1=CO)
+ * @param sensor_id Sensor identifier (0=SEN66, 1=CO, 2=PMSX003)
  * @return STATUS_OK on success
  */
 status_e sensor_manager_reset_sensor(sensor_manager_ctx_s *ctx, uint8_t sensor_id);

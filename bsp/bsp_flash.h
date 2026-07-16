@@ -58,6 +58,9 @@
 #define BSP_FLASH_CFG_OFF_BAUDRATE   (0x08U)   /* Baudrate entry             */
 #define BSP_FLASH_CFG_OFF_PARITY     (0x10U)   /* Parity entry               */
 #define BSP_FLASH_CFG_OFF_STOPBITS   (0x18U)   /* Stop bits entry            */
+#define BSP_FLASH_CFG_OFF_PMSX003_PM1_0  (0x20U)   /* PMSX003 PM1.0 calibration */
+#define BSP_FLASH_CFG_OFF_PMSX003_PM2_5  (0x28U)   /* PMSX003 PM2.5 calibration */
+#define BSP_FLASH_CFG_OFF_PMSX003_PM10   (0x30U)   /* PMSX003 PM10 calibration  */
 
 /* -------------------------------------------------------------------------
  * API
@@ -102,22 +105,28 @@ static inline uint32_t bsp_flash_read_word(uint32_t addr)
 }
 
 /**
- * @brief Write all four config entries to the config page atomically.
+ * @brief Write all config entries to the config page atomically.
  *
- * Erases the page once then writes slave_id, baudrate, parity, and stop bits
- * as four consecutive doublewords. Always call this function instead of
- * calling bsp_flash_write_dword directly for config data, so all values
- * stay consistent on the page.
+ * Erases the page once then writes slave_id, baudrate, parity, stop bits,
+ * and PMSX003 calibration factors as consecutive doublewords. Always call
+ * this function instead of calling bsp_flash_write_dword directly for config
+ * data, so all values stay consistent on the page.
  *
  * @param slave_id  Modbus slave ID (1–247)
  * @param baudrate  UART baudrate in bps (e.g. 9600, 19200, 38400, 115200)
  * @param parity    0=None  1=Even  2=Odd
  * @param stopbits  1=one stop bit  2=two stop bits
+ * @param pmsx003_pm1_0_cal  PM1.0 calibration factor (fixed-point ×1000)
+ * @param pmsx003_pm2_5_cal  PM2.5 calibration factor (fixed-point ×1000)
+ * @param pmsx003_pm10_cal   PM10 calibration factor (fixed-point ×1000)
  * @return STATUS_OK if all writes verified, STATUS_ERR_GENERIC on failure.
  */
 status_e bsp_flash_write_config(uint8_t  slave_id,
                                 uint32_t baudrate,
                                 uint8_t  parity,
-                                uint8_t  stopbits);
+                                uint8_t  stopbits,
+                                uint16_t pmsx003_pm1_0_cal,
+                                uint16_t pmsx003_pm2_5_cal,
+                                uint16_t pmsx003_pm10_cal);
 
 #endif /* BSP_FLASH_H */

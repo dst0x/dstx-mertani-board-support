@@ -18,6 +18,10 @@
 #include "drivers/sensor_infwin_co/infwin_co_sensor.h"
 #endif
 
+#if SENSOR_ENABLE_PMSX003
+#include "drivers/sensor_pmsx003/pmsx003_sensor.h"
+#endif
+
 #ifdef USART1_DEBUG_MODE
 #include "bsp/bsp_uart.h"
 #endif
@@ -100,7 +104,7 @@ status_e sensor_manager_init(sensor_manager_ctx_s *ctx) {
     if (co != NULL) {
         status_e status = sensor_co_init(co);
         if (status == STATUS_OK) {
-            ctx->co_ctx.status = SENSOR_STATUS_RUNNING;  /* Skip warmup, start reading immediately */
+            ctx->co_ctx.status = SENSOR_STATUS_RUNNING; 
 #ifdef USART1_DEBUG_MODE
             bsp_debug_write_str("[SENSOR_MGR] CO sensor ready.\r\n");
 #endif
@@ -112,6 +116,32 @@ status_e sensor_manager_init(sensor_manager_ctx_s *ctx) {
         }
     }
 #endif
+#endif
+
+#if SENSOR_ENABLE_PMSX003
+    ctx->pmsx003_ctx.status = SENSOR_STATUS_INITIALIZING;
+    ctx->pmsx003_ctx.error_count = 0;
+    ctx->pmsx003_ctx.zero_count = 0;
+    ctx->pmsx003_ctx.data_valid = false;
+    ctx->pmsx003_ctx.has_valid_data = false;
+    ctx->pmsx003_ctx.last_poll_tick = ctx->global_tick;
+    ctx->pmsx003_ctx.last_reset_tick = ctx->global_tick;
+
+    pmsx003_ctx_s *pmsx003 = (pmsx003_ctx_s *)ctx->pmsx003_driver;
+    if (pmsx003 != NULL) {
+        status_e status = sensor_pmsx003_init(pmsx003);
+        if (status == STATUS_OK) {
+            ctx->pmsx003_ctx.status = SENSOR_STATUS_RUNNING;
+#ifdef USART1_DEBUG_MODE
+            bsp_debug_write_str("[SENSOR_MGR] PMSX003 ready.\r\n");
+#endif
+        } else {
+            ctx->pmsx003_ctx.status = SENSOR_STATUS_ERROR;
+#ifdef USART1_DEBUG_MODE
+            bsp_debug_write_str("[SENSOR_MGR] PMSX003 init failed.\r\n");
+#endif
+        }
+    }
 #endif
 
     ctx->initialized = true;
@@ -292,6 +322,80 @@ status_e sensor_manager_poll(sensor_manager_ctx_s *ctx) {
 #endif
 #endif
 
+#if SENSOR_ENABLE_PMSX003
+    pmsx003_ctx_s *pmsx003 = (pmsx003_ctx_s *)ctx->pmsx003_driver;
+    if (pmsx003 != NULL) {
+        /* Poll PMSX003 sensor */
+        if (ctx->pmsx003_ctx.status == SENSOR_STATUS_RUNNING) {
+            status_e status = sensor_pmsx003_poll(pmsx003);
+            
+            if (status == STATUS_OK) {
+                /* Check if fresh data available */
+                if (sensor_pmsx003_is_data_fresh(pmsx003)) {
+                    const pmsx003_data_s *data = sensor_pmsx003_get_data(pmsx003);
+                    if (data != NULL) {
+                        ctx->pmsx003_ctx.error_count = 0;
+                        ctx->pmsx003_ctx.data_valid = true;
+                        ctx->pmsx003_ctx.has_valid_data = true;
+                        overall_status = STATUS_OK;
+                        sensor_pmsx003_clear_fresh(pmsx003);
+
+#ifdef USART1_DEBUG_MODE
+                        bsp_debug_write_str("[SENSOR_MGR] PMSX003 data updated.\r\n");
+#endif
+                    }
+                }
+            } else {
+                ctx->pmsx003_ctx.error_count++;
+                if (ctx->pmsx003_ctx.error_count >= SENSOR_MAX_ERRORS) {
+                    ctx->pmsx003_ctx.status = SENSOR_STATUS_ERROR;
+                    ctx->pmsx003_ctx.data_valid = false;
+#ifdef USART1_DEBUG_MODE
+                    bsp_debug_write_str("[SENSOR_MGR] PMSX003 error threshold exceeded.\r\n");
+#endif
+                }
+            }
+        }
+
+        /* Handle error state - retry PMSX003 sensor init */
+        if (ctx->pmsx003_ctx.status == SENSOR_STATUS_ERROR) {
+            if (bsp_systick_elapsed(ctx->pmsx003_ctx.last_poll_tick, SENSOR_RETRY_INTERVAL_MS)) {
+                ctx->pmsx003_ctx.last_poll_tick = now;
+                bsp_iwdg_refresh();
+
+#ifdef USART1_DEBUG_MODE
+                bsp_debug_write_str("[SENSOR_MGR] Attempting to recover PMSX003...\r\n");
+#endif
+
+                status_e status = sensor_pmsx003_reset(pmsx003);
+                if (status == STATUS_OK) {
+                    ctx->pmsx003_ctx.status = SENSOR_STATUS_RUNNING;
+                    ctx->pmsx003_ctx.error_count = 0;
+                    ctx->pmsx003_ctx.last_reset_tick = now;
+#ifdef USART1_DEBUG_MODE
+                    bsp_debug_write_str("[SENSOR_MGR] PMSX003 reconnected.\r\n");
+#endif
+                } else {
+#ifdef USART1_DEBUG_MODE
+                    bsp_debug_write_str("[SENSOR_MGR] PMSX003 reset failed during recovery.\r\n");
+#endif
+                }
+                bsp_iwdg_refresh();
+            }
+        }
+
+        /* Check for periodic reset */
+        if (ctx->pmsx003_ctx.status == SENSOR_STATUS_RUNNING) {
+            if (sensor_manager_needs_periodic_reset(ctx->pmsx003_ctx.last_reset_tick, now)) {
+#ifdef USART1_DEBUG_MODE
+                bsp_debug_write_str("[SENSOR_MGR] PMSX003 periodic reset.\r\n");
+#endif
+                sensor_manager_reset_sensor(ctx, 2);
+            }
+        }
+    }
+#endif
+
     return overall_status;
 }
 
@@ -308,6 +412,10 @@ sensor_status_e sensor_manager_get_status(sensor_manager_ctx_s *ctx, uint8_t sen
 #if SENSOR_ENABLE_INFWIN_CO
         case 1:
             return ctx->co_ctx.status;
+#endif
+#if SENSOR_ENABLE_PMSX003
+        case 2:
+            return ctx->pmsx003_ctx.status;
 #endif
         default:
             return SENSOR_STATUS_DISABLED;
@@ -353,6 +461,24 @@ status_e sensor_manager_reset_sensor(sensor_manager_ctx_s *ctx, uint8_t sensor_i
             ctx->co_ctx.last_reset_tick = now;
             return STATUS_OK;
 #endif
+#if SENSOR_ENABLE_PMSX003
+        case 2: {
+            pmsx003_ctx_s *pmsx003 = (pmsx003_ctx_s *)ctx->pmsx003_driver;
+            if (pmsx003 != NULL) {
+                bsp_iwdg_refresh();
+                status_e status = sensor_pmsx003_reset(pmsx003);
+                if (status == STATUS_OK) {
+                    ctx->pmsx003_ctx.status = SENSOR_STATUS_RUNNING;
+                    ctx->pmsx003_ctx.error_count = 0;
+                    ctx->pmsx003_ctx.last_reset_tick = now;
+                    bsp_iwdg_refresh();
+                    return STATUS_OK;
+                }
+                bsp_iwdg_refresh();
+            }
+            return STATUS_ERR_GENERIC;
+        }
+#endif
         default:
             return STATUS_ERR_GENERIC;
     }
@@ -393,6 +519,12 @@ void sensor_manager_get_stats(sensor_manager_ctx_s *ctx, uint8_t sensor_id,
         case 1:
             *error_count = ctx->co_ctx.error_count;
             *zero_count = ctx->co_ctx.zero_count;
+            break;
+#endif
+#if SENSOR_ENABLE_PMSX003
+        case 2:
+            *error_count = ctx->pmsx003_ctx.error_count;
+            *zero_count = ctx->pmsx003_ctx.zero_count;
             break;
 #endif
         default:

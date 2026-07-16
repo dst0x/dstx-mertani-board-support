@@ -1,6 +1,5 @@
 /*
  * @file uart_manager.c
- * @brief Centralized UART/Communication Path Configuration
  * 
  * Created on: 15 July 2026
  *     Author: DST0x
@@ -9,10 +8,6 @@
 #include "uart_manager.h"
 #include "bsp/bsp_uart.h"
 #include "bsp/bsp_gpio.h"
-
-/* ========================================================================
- * PRIVATE HELPER FUNCTIONS
- * ======================================================================== */
 
 static const char* get_mode_string(comm_path_mode_e mode) {
     switch (mode) {
@@ -33,10 +28,6 @@ static uint32_t get_baudrate_for_mode(comm_path_mode_e mode) {
         default:                   return 9600U;
     }
 }
-
-/* ========================================================================
- * UART MANAGER API IMPLEMENTATION
- * ======================================================================== */
 
 status_e uart_manager_init(uart_manager_ctx_s *ctx) {
     if (ctx == NULL) {
@@ -83,8 +74,11 @@ status_e uart_manager_init(uart_manager_ctx_s *ctx) {
 
         case COMM_PATH_MODE_SDI12:
 #ifdef USART1_SENSOR_MODE
-            /* SDI-12 initialization would go here */
+            bsp_sensor_init();
             ctx->usart1_initialized = true;
+#ifdef USART1_DEBUG_MODE
+            bsp_debug_write_str("[UART_MGR] USART1 SENSOR mode initialized.\r\n");
+#endif
 #endif
             break;
 

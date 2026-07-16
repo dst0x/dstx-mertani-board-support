@@ -1,14 +1,9 @@
 /*
  * @file uart_manager.h
- * @brief Centralized UART/Communication Path Configuration
  * 
  * Created on: 15 July 2026
  *     Author: DST0x
  * 
- * Description:
- *   This module provides centralized configuration for all UART communication
- *   paths including RS485, RS232, TTL, and SDI-12 modes. Users can select
- *   the communication protocol from this single configuration file.
  */
 
 #ifndef UART_MANAGER_H
@@ -18,10 +13,6 @@
 #include <stdbool.h>
 #include "common/common_types.h"
 
-/* ========================================================================
- * COMMUNICATION MODE SELECTION
- * ======================================================================== */
-/* Use #define instead of enum so preprocessor #if comparisons work */
 #define COMM_PATH_MODE_RS485    0
 #define COMM_PATH_MODE_RS232    1
 #define COMM_PATH_MODE_TTL      2
@@ -31,7 +22,7 @@
 /* Typedef for use as variable type in structs */
 typedef uint8_t comm_path_mode_e;
 
-#define USART1_MODE             COMM_PATH_MODE_RS485  /* Change this to select USART1 mode */
+#define USART1_MODE             COMM_PATH_MODE_SDI12  /* PMSX003 Sensor Mode - Change to RS485 for Modbus/CO sensor */
 
 #if (USART1_MODE == COMM_PATH_MODE_TTL)
     #define USART1_DEBUG_MODE
@@ -45,6 +36,10 @@ typedef uint8_t comm_path_mode_e;
     #define USART1_SENSOR_MODE
     #undef USART1_DEBUG_MODE
     #undef USART1_MODBUS_MODE
+#else
+    #undef USART1_DEBUG_MODE
+    #undef USART1_MODBUS_MODE
+    #undef USART1_SENSOR_MODE
 #endif
 
 #define USART2_MODE             COMM_PATH_MODE_RS485
@@ -57,16 +52,10 @@ typedef uint8_t comm_path_mode_e;
 #define COMM_RS485_DE_ASSERT_DELAY_US   50U     /* DE pin timing */
 #define COMM_RS485_DE_NEGATE_DELAY_US   50U
 
-/* ========================================================================
- * BUFFER SIZES
- * ======================================================================== */
 #define UART_TX_BUFFER_SIZE     256U
 #define UART_RX_BUFFER_SIZE     256U
 #define MODBUS_BUFFER_SIZE      64U
 
-/* ========================================================================
- * UART MANAGER CONTEXT
- * ======================================================================== */
 typedef struct {
     comm_path_mode_e usart1_mode;
     comm_path_mode_e usart2_mode;
@@ -85,10 +74,6 @@ typedef struct {
     uint32_t usart1_errors;
     uint32_t usart2_errors;
 } uart_manager_ctx_s;
-
-/* ========================================================================
- * UART MANAGER API
- * ======================================================================== */
 
 /**
  * @brief Initialize UART manager and configure all communication paths

@@ -120,6 +120,7 @@ $SOURCES = @(
     "platform/stm32g0/startup_stm32g031xx.c",
     "drivers/sensor_sensirion_sen66/sensirion_sen66.c",
     "drivers/sensor_infwin_co/infwin_co_sensor.c",
+    "drivers/sensor_pmsx003/pmsx003_sensor.c",
     "middleware/modbus/modbus_crc.c",
     "middleware/modbus/modbus_slave.c",
     "middleware/sensor_manager.c",

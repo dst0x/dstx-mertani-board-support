@@ -13,6 +13,16 @@ void bsp_modbus_set_co_sensor_ptr(co_ctx_s *ptr) {
 }
 #endif
 
+#ifdef USART1_SENSOR_MODE
+#include "drivers/sensor_pmsx003/pmsx003_sensor.h"
+
+static pmsx003_ctx_s *g_pmsx003_sensor_ptr = NULL;
+
+void bsp_sensor_set_pmsx003_ptr(pmsx003_ctx_s *ptr) {
+    g_pmsx003_sensor_ptr = ptr;
+}
+#endif
+
 #include <stddef.h>
 
 #define USART1_BRR_115200   (555U)   /* 64 MHz / 115200 */
@@ -54,7 +64,8 @@ static volatile uint16_t rs485_echo_count = 0U;
     static uint8_t u32_to_dec(uint32_t value, uint8_t *buf){
         char temp[11U];
         uint8_t pos = 0U, len, i;
-        if(value == 0){
+        if(value == 0){bsp_systick_delay_ms(SEN66_STOP_DELAY_MS)  → 1400 ms blocking, tanpa IWDG refresh
+        bsp_systick_delay_ms(SEN66_RESET_DELAY_MS) → 1200 ms blocking, tanpa IWDG refresh
             buf[0U] = '0';
             buf[1U] = '\0';
             return 1U;
@@ -261,6 +272,32 @@ static volatile uint16_t rs485_echo_count = 0U;
         }
     }
 #endif /* USART1_MODBUS_MODE */
+
+#ifdef USART1_SENSOR_MODE
+    void bsp_sensor_init(void){
+        SET_BIT(RCC->APBENR2, RCC_APBENR2_USART1EN);
+        (void)RCC->APBENR2;
+        USART1->CR1 = 0U;
+        USART1->BRR = USART1_BRR_9600;  /* PMSX003 uses 9600 baud */
+        USART1->CR2 = 0U;
+        USART1->CR3 = 0U;
+        USART1->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE | USART_CR1_RXNEIE_RXFNEIE;
+        NVIC_SetPriority(USART1_IRQn, 2U);
+        NVIC_EnableIRQ(USART1_IRQn);
+    }
+
+    void bsp_usart1_irq_handler(void){
+        if ((USART1->ISR & USART_ISR_RXNE_RXFNE) != 0UL){
+            uint8_t byte = (uint8_t)(USART1->RDR & 0xFFUL);
+            if (g_pmsx003_sensor_ptr != NULL) {
+                sensor_pmsx003_rx_byte(g_pmsx003_sensor_ptr, byte);
+            }
+        }
+        if ((USART1->ISR & (USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE)) != 0UL){
+            SET_BIT(USART1->ICR, USART_ICR_FECF | USART_ICR_ORECF | USART_ICR_NECF);
+        }
+    }
+#endif /* USART1_SENSOR_MODE */
 
 void USART1_IRQHandler(void){
     bsp_usart1_irq_handler();

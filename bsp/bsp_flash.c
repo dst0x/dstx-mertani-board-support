@@ -119,7 +119,10 @@ status_e bsp_flash_write_dword(uint32_t addr, uint32_t word_lo, uint32_t word_hi
 status_e bsp_flash_write_config(uint8_t  slave_id,
                                 uint32_t baudrate,
                                 uint8_t  parity,
-                                uint8_t  stopbits)
+                                uint8_t  stopbits,
+                                uint16_t pmsx003_pm1_0_cal,
+                                uint16_t pmsx003_pm2_5_cal,
+                                uint16_t pmsx003_pm10_cal)
 {
     status_e ret;
 
@@ -140,5 +143,17 @@ status_e bsp_flash_write_config(uint8_t  slave_id,
 
     ret = bsp_flash_write_dword(BSP_FLASH_CFG_PAGE_ADDR + BSP_FLASH_CFG_OFF_STOPBITS,
                                 BSP_FLASH_CFG_MAGIC, (uint32_t)stopbits);
+    if (ret != STATUS_OK) { return ret; }
+
+    ret = bsp_flash_write_dword(BSP_FLASH_CFG_PAGE_ADDR + BSP_FLASH_CFG_OFF_PMSX003_PM1_0,
+                                BSP_FLASH_CFG_MAGIC, (uint32_t)pmsx003_pm1_0_cal);
+    if (ret != STATUS_OK) { return ret; }
+
+    ret = bsp_flash_write_dword(BSP_FLASH_CFG_PAGE_ADDR + BSP_FLASH_CFG_OFF_PMSX003_PM2_5,
+                                BSP_FLASH_CFG_MAGIC, (uint32_t)pmsx003_pm2_5_cal);
+    if (ret != STATUS_OK) { return ret; }
+
+    ret = bsp_flash_write_dword(BSP_FLASH_CFG_PAGE_ADDR + BSP_FLASH_CFG_OFF_PMSX003_PM10,
+                                BSP_FLASH_CFG_MAGIC, (uint32_t)pmsx003_pm10_cal);
     return ret;
 }
