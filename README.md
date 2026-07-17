@@ -700,6 +700,10 @@ Check register 0x6C (state):
 | 1.1     | 15 Jul 2026 | Modbus config registers 0xF0–0xF3: Slave ID, baudrate, parity, stop bits  |
 | 1.2     | 15 Jul 2026 | Added PMSX003 sensor support with IEEE 754 float DCBA format (little-endian) |
 | 1.3     | 15 Jul 2026 | Implemented 15-poll invalidation logic for graceful disconnect handling    |
+| 1.4     | 15 Jul 2026 | **Fixed** SDI12 mode baudrate: 1200→9600 bps for PMSX003 compatibility    |
+| 1.5     | 15 Jul 2026 | **Fixed** IWDG timeout: 2s→8s + auto-refresh during long delays           |
+| 1.6     | 15 Jul 2026 | **Fixed** RS485 timing: Added proper settling delays for Modbus reliability |
+| 1.7     | 15 Jul 2026 | **Added** Custom 3-byte header (0x00 0x00 0x48) for FC03/FC04 Read responses |
 
 ---
 

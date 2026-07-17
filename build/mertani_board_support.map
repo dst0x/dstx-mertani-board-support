@@ -217,7 +217,7 @@ LOAD build/middleware_uart_manager.o
  .isr_vector    0x08000000       0xb8 build/platform_stm32g0_startup_stm32g031xx.o
                 0x080000b8                        . = ALIGN (0x4)
 
-.text           0x080000b8     0x2bec
+.text           0x080000b8     0x2bf8
                 0x080000b8                        . = ALIGN (0x4)
  *(.text)
  .text          0x080000b8       0x14 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(_thumb1_case_uqi.o)
@@ -437,67 +437,67 @@ LOAD build/middleware_uart_manager.o
                 0x0800199c                modbus_slave_rx_byte
  *fill*         0x080019da        0x2 
  .text.modbus_slave_process
-                0x080019dc      0x564 build/middleware_modbus_modbus_slave.o
+                0x080019dc      0x570 build/middleware_modbus_modbus_slave.o
                 0x080019dc                modbus_slave_process
  .text.sensor_manager_init
-                0x08001f40       0xa2 build/middleware_sensor_manager.o
-                0x08001f40                sensor_manager_init
+                0x08001f4c       0xa2 build/middleware_sensor_manager.o
+                0x08001f4c                sensor_manager_init
  .text.sensor_manager_get_status
-                0x08001fe2       0x20 build/middleware_sensor_manager.o
-                0x08001fe2                sensor_manager_get_status
+                0x08001fee       0x20 build/middleware_sensor_manager.o
+                0x08001fee                sensor_manager_get_status
  .text.sensor_manager_reset_sensor
-                0x08002002       0x8a build/middleware_sensor_manager.o
-                0x08002002                sensor_manager_reset_sensor
+                0x0800200e       0x8a build/middleware_sensor_manager.o
+                0x0800200e                sensor_manager_reset_sensor
  .text.sensor_manager_poll
-                0x0800208c      0x1c0 build/middleware_sensor_manager.o
-                0x0800208c                sensor_manager_poll
+                0x08002098      0x1c0 build/middleware_sensor_manager.o
+                0x08002098                sensor_manager_poll
  .text.uart_manager_init
-                0x0800224c       0x44 build/middleware_uart_manager.o
-                0x0800224c                uart_manager_init
- .text.memset   0x08002290       0x8c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v6-m/nofp\libc.a(libc_a-memset.o)
-                0x08002290                memset
- .text.memcpy   0x0800231c       0xa8 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v6-m/nofp\libc.a(libc_a-memcpy-stub.o)
-                0x0800231c                memcpy
+                0x08002258       0x44 build/middleware_uart_manager.o
+                0x08002258                uart_manager_init
+ .text.memset   0x0800229c       0x8c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v6-m/nofp\libc.a(libc_a-memset.o)
+                0x0800229c                memset
+ .text.memcpy   0x08002328       0xa8 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v6-m/nofp\libc.a(libc_a-memcpy-stub.o)
+                0x08002328                memcpy
  .text.__aeabi_fdiv
-                0x080023c4      0x22c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(divsf3.o)
-                0x080023c4                __aeabi_fdiv
+                0x080023d0      0x22c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(divsf3.o)
+                0x080023d0                __aeabi_fdiv
  .text.__aeabi_fmul
-                0x080025f0      0x294 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(mulsf3.o)
-                0x080025f0                __aeabi_fmul
+                0x080025fc      0x294 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(mulsf3.o)
+                0x080025fc                __aeabi_fmul
  .text.__aeabi_ui2f
-                0x08002884       0x84 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(floatunsisf.o)
-                0x08002884                __aeabi_ui2f
+                0x08002890       0x84 C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(floatunsisf.o)
+                0x08002890                __aeabi_ui2f
  *(.rodata)
- .rodata        0x08002908      0x100 build/drivers_sensor_sensirion_sen66_sensirion_sen66.o
- .rodata        0x08002a08      0x200 build/middleware_modbus_modbus_crc.o
+ .rodata        0x08002914      0x100 build/drivers_sensor_sensirion_sen66_sensirion_sen66.o
+ .rodata        0x08002a14      0x200 build/middleware_modbus_modbus_crc.o
  *(.rodata*)
  .rodata.CSWTCH.60
-                0x08002c08       0x20 build/middleware_modbus_modbus_slave.o
+                0x08002c14       0x20 build/middleware_modbus_modbus_slave.o
  .rodata.__aeabi_fdiv
-                0x08002c28       0x7c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(divsf3.o)
-                0x08002ca4                        . = ALIGN (0x4)
-                0x08002ca4                        _etext = .
-                0x08002ca4                        _sidata = LOADADDR (.data)
+                0x08002c34       0x7c C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v6-m/nofp\libgcc.a(divsf3.o)
+                0x08002cb0                        . = ALIGN (0x4)
+                0x08002cb0                        _etext = .
+                0x08002cb0                        _sidata = LOADADDR (.data)
 
-.glue_7         0x08002ca4        0x0
- .glue_7        0x08002ca4        0x0 linker stubs
+.glue_7         0x08002cb0        0x0
+ .glue_7        0x08002cb0        0x0 linker stubs
 
-.glue_7t        0x08002ca4        0x0
- .glue_7t       0x08002ca4        0x0 linker stubs
+.glue_7t        0x08002cb0        0x0
+ .glue_7t       0x08002cb0        0x0 linker stubs
 
-.vfp11_veneer   0x08002ca4        0x0
- .vfp11_veneer  0x08002ca4        0x0 linker stubs
+.vfp11_veneer   0x08002cb0        0x0
+ .vfp11_veneer  0x08002cb0        0x0 linker stubs
 
-.v4_bx          0x08002ca4        0x0
- .v4_bx         0x08002ca4        0x0 linker stubs
+.v4_bx          0x08002cb0        0x0
+ .v4_bx         0x08002cb0        0x0 linker stubs
 
-.iplt           0x08002ca4        0x0
- .iplt          0x08002ca4        0x0 build/main.o
+.iplt           0x08002cb0        0x0
+ .iplt          0x08002cb0        0x0 build/main.o
 
-.rel.dyn        0x08002ca4        0x0
- .rel.iplt      0x08002ca4        0x0 build/main.o
+.rel.dyn        0x08002cb0        0x0
+ .rel.iplt      0x08002cb0        0x0 build/main.o
 
-.data           0x20000000        0xc load address 0x08002ca4
+.data           0x20000000        0xc load address 0x08002cb0
                 0x20000000                        . = ALIGN (0x4)
                 0x20000000                        _sdata = .
  *(.data)
@@ -518,10 +518,10 @@ LOAD build/middleware_uart_manager.o
  *fill*         0x20000009        0x3 
                 0x2000000c                        _edata = .
 
-.igot.plt       0x2000000c        0x0 load address 0x08002cb0
+.igot.plt       0x2000000c        0x0 load address 0x08002cbc
  .igot.plt      0x2000000c        0x0 build/main.o
 
-.bss            0x2000000c      0x3a4 load address 0x08002cb0
+.bss            0x2000000c      0x3a4 load address 0x08002cbc
                 0x2000000c                        . = ALIGN (0x4)
                 0x2000000c                        _sbss = .
                 0x2000000c                        __bss_start__ = _sbss
@@ -574,7 +574,7 @@ LOAD build/middleware_uart_manager.o
                 0x200003b0                        _ebss = .
                 0x200003b0                        __bss_end__ = _ebss
 
-._stack         0x200003b0      0x700 load address 0x08002cb0
+._stack         0x200003b0      0x700 load address 0x08002cbc
                 0x200003b0                        . = ALIGN (0x8)
                 [!provide]                        PROVIDE (end = .)
                 0x200004b0                        . = (. + 0x100)

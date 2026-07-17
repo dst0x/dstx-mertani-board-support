@@ -372,6 +372,7 @@ static uint16_t append_crc(uint8_t *buf, uint16_t len)
 
 static uint16_t build_exception(uint8_t *buf, uint8_t fc, uint8_t ex)
 {
+    /* Exception response: NO custom header (standard Modbus only) */
     buf[0U] = g_slave_id;
     buf[1U] = fc | 0x80U;
     buf[2U] = ex;
@@ -522,7 +523,7 @@ void modbus_slave_rx_byte(modbus_slave_ctx_s *ctx, uint8_t byte, uint32_t tick)
         }
 
         if (cfg_changed) {
-            /* Echo response at current baudrate before switching */
+            /* Echo response at current baudrate before switching (NO custom header) */
             ctx->tx_buf[0U] = g_slave_id;
             ctx->tx_buf[1U] = MB_FC_WRITE_SINGLE;
             ctx->tx_buf[2U] = ctx->rx_buf[2U];
@@ -567,16 +568,22 @@ void modbus_slave_rx_byte(modbus_slave_ctx_s *ctx, uint8_t byte, uint32_t tick)
     build_register_map(sensor_ctx, regs);
 #endif
 
+    /* Custom header: 0x00 0x00 0x48 (only for Read responses) */
+    ctx->tx_buf[0U] = 0x00U;
+    ctx->tx_buf[1U] = 0x00U;
+    ctx->tx_buf[2U] = 0x48U;
+    
+    /* Build Modbus Read response */
     byte_cnt        = (uint16_t)(qty * 2U);
-    ctx->tx_buf[0U] = g_slave_id;
-    ctx->tx_buf[1U] = fc;
-    ctx->tx_buf[2U] = (uint8_t)(byte_cnt & 0x00FFU);
+    ctx->tx_buf[3U] = g_slave_id;
+    ctx->tx_buf[4U] = fc;
+    ctx->tx_buf[5U] = (uint8_t)(byte_cnt & 0x00FFU);
     for (i = 0U; i < qty; i++) {
         uint16_t reg_val = regs[start_addr + i];
-        ctx->tx_buf[3U + (i * 2U)]      = (uint8_t)((reg_val >> 8U) & 0x00FFU);
-        ctx->tx_buf[3U + (i * 2U) + 1U] = (uint8_t)(reg_val & 0x00FFU);
+        ctx->tx_buf[6U + (i * 2U)]      = (uint8_t)((reg_val >> 8U) & 0x00FFU);
+        ctx->tx_buf[6U + (i * 2U) + 1U] = (uint8_t)(reg_val & 0x00FFU);
     }
-    *tx_len = append_crc(ctx->tx_buf, (uint16_t)(3U + byte_cnt));
+    *tx_len = append_crc(&ctx->tx_buf[3U], (uint16_t)(3U + byte_cnt)) + 3U; /* +3 for header */
 
 done:
     ctx->rx_len      = 0U;
