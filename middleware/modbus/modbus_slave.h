@@ -7,17 +7,17 @@
 * Modbus Register Map (FC03 / FC04 Read Holding/Input Registers):
 *
 * ---- SENSOR DATA (0x00 - 0x1F) ----------------------------------------
-*   Addr  Description          Scale    Source
-*   0x00  PM1.0  µg/m³         ÷10      SEN66
-*   0x01  PM2.5  µg/m³         ÷10      SEN66
-*   0x02  PM4.0  µg/m³         ÷10      SEN66
-*   0x03  PM10   µg/m³         ÷10      SEN66
-*   0x04  RH     %RH           ÷100     SEN66
-*   0x05  Temp   °C            ÷10      SEN66
-*   0x06  VOC index            ÷10      SEN66
-*   0x07  NOx index            ÷10      SEN66
-*   0x08  CO2    ppm           ×1       SEN66
-*   0x09  CO     ppm           ×1       Infwin
+*   Addr  Description          Scale    Source    Notes
+*   0x00  PM1.0  µg/m³         ÷10      SEN66     
+*   0x01  PM2.5  µg/m³         ÷10      SEN66     
+*   0x02  PM4.0  µg/m³         ÷10      SEN66     
+*   0x03  PM10   µg/m³         ÷10      SEN66     
+*   0x04  RH     %RH           ÷10      SEN66     
+*   0x05  Temp   °C            ÷10      SEN66     (sensor ×200 → driver ÷20 → reg)
+*   0x06  VOC index            ×1       SEN66     (direct value, no scaling)
+*   0x07  NOx index            ×1       SEN66     (direct value, no scaling)
+*   0x08  CO2    ppm           ×1       SEN66     
+*   0x09  CO     ppm           ×1       Infwin    
 *   0x0A  (reserved)
 *   0x0B  (reserved)
 *   0x0C  (reserved)
@@ -116,12 +116,11 @@
 #define MB_REG_CFG_STOPBITS     (0x00F3U)   
 #define MB_REG_CFG_LAST_UPDATE  (0x00F4U)  
 
-/* PMSX003 Calibration Factors (fixed-point ×1000) */
 #define MB_REG_PMSX003_CAL_PM1_0    (0x00F5U)  /* PM1.0 correction factor */
 #define MB_REG_PMSX003_CAL_PM2_5    (0x00F6U)  /* PM2.5 correction factor */
 #define MB_REG_PMSX003_CAL_PM10     (0x00F7U)  /* PM10 correction factor */
 
-#define MB_REG_CFG_LAST         (0x00F7U)  /* Updated to include calibration registers */ 
+#define MB_REG_CFG_LAST         (0x00F7U)
 
 /* Baudrate */
 #define MB_BAUD_CODE_1200       (1U)

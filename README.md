@@ -253,14 +253,69 @@ The firmware operates as a **Modbus RTU Slave** on USART2 RS485.
 | 1         | 0x01      | PM2.5 µg/m³         | ÷10    | SEN66   | 714 → 71.4 µg/m³               |
 | 2         | 0x02      | PM4.0 µg/m³         | ÷10    | SEN66   | 810 → 81.0 µg/m³               |
 | 3         | 0x03      | PM10  µg/m³         | ÷10    | SEN66   | 856 → 85.6 µg/m³               |
-| 4         | 0x04      | Humidity %RH        | ÷100   | SEN66   | 6750 → 67.50 %RH                |
-| 5         | 0x05      | Temperature °C       | ÷10    | SEN66   | 262 → 26.2 °C                    |
-| 6         | 0x06      | VOC Index           | ÷10    | SEN66   | 990 → 99.0                       |
-| 7         | 0x07      | NOx Index           | ÷10    | SEN66   | 10 → 1.0                         |
+| 4         | 0x04      | Humidity %RH        | ÷10    | SEN66   | 675 → 67.5 %RH                  |
+| 5         | 0x05      | Temperature °C       | ÷10    | SEN66   | 260 → 26.0 °C                   |
+| 6         | 0x06      | VOC Index           | ×1     | SEN66   | 100 → 100                       |
+| 7         | 0x07      | NOx Index           | ×1     | SEN66   | 1 → 1                           |
 | 8         | 0x08      | CO2 ppm             | ×1     | SEN66   | 1815 → 1815 ppm                  |
 | 9         | 0x09      | CO  ppm             | ×1     | Infwin  | 40 → 40 ppm                      |
 
 > Registers 10–99 (0x0A–0x63): **reserved**, always return 0.
+
+**📊 Scaling Reference Guide:**
+
+| Parameter | Register Value | Calculation | Actual Value |
+|-----------|----------------|-------------|--------------|
+| PM1.0     | 573            | 573 ÷ 10    | 57.3 µg/m³   |
+| PM2.5     | 714            | 714 ÷ 10    | 71.4 µg/m³   |
+| PM4.0     | 810            | 810 ÷ 10    | 81.0 µg/m³   |
+| PM10      | 856            | 856 ÷ 10    | 85.6 µg/m³   |
+| Humidity  | 675            | 675 ÷ 10    | 67.5% RH     |
+| Temperature | 260          | 260 ÷ 10    | 26.0°C       |
+| VOC Index | 100            | 100 × 1     | 100 (index)  |
+| NOx Index | 1              | 1 × 1       | 1 (index)    |
+| CO2       | 400            | 400 × 1     | 400 ppm      |
+| CO        | 40             | 40 × 1      | 40 ppm       |
+
+**🔍 Why Different Scales?**
+
+**Particulate Matter & Environmental (÷10):**
+- SEN66 sensor provides high-resolution fixed-point values
+- Driver preserves precision by keeping values in ×10 format
+- Master divides by 10 to get actual floating-point value
+- Example: PM2.5 = 714 → 71.4 µg/m³ (one decimal precision)
+
+**Temperature (÷10):**
+- SEN66 outputs temperature in ×200 format (0.005°C resolution)
+- Driver scales down by ÷20 to get ×10 format for Modbus
+- Master divides by 10 to get actual °C
+- Calculation: 5200 (sensor) → 5200÷20=260 (register) → 260÷10=26.0°C
+
+**VOC/NOx/CO2/CO (×1):**
+- These are index values or gas concentrations
+- Already in appropriate integer format from sensor
+- No scaling needed on master side
+
+**Python Example:**
+```python
+import struct
+
+# Read SEN66 data
+regs = modbus_client.read_holding_registers(0, 9)
+
+pm1_0 = regs[0] / 10.0    # 573 → 57.3 µg/m³
+pm2_5 = regs[1] / 10.0    # 714 → 71.4 µg/m³
+pm4_0 = regs[2] / 10.0    # 810 → 81.0 µg/m³
+pm10  = regs[3] / 10.0    # 856 → 85.6 µg/m³
+rh    = regs[4] / 10.0    # 675 → 67.5% RH
+temp  = regs[5] / 10.0    # 260 → 26.0°C
+voc   = regs[6]           # 100 → 100 (index)
+nox   = regs[7]           # 1 → 1 (index)
+co2   = regs[8]           # 400 → 400 ppm
+
+print(f"Temperature: {temp:.1f}°C, Humidity: {rh:.1f}%")
+print(f"PM2.5: {pm2_5:.1f} µg/m³, CO2: {co2} ppm")
+```
 
 ### PMSX003 Data (Addresses 1040–1045, IEEE 754 Float DCBA)
 
@@ -703,7 +758,7 @@ Check register 0x6C (state):
 | 1.4     | 15 Jul 2026 | **Fixed** SDI12 mode baudrate: 1200→9600 bps for PMSX003 compatibility    |
 | 1.5     | 15 Jul 2026 | **Fixed** IWDG timeout: 2s→8s + auto-refresh during long delays           |
 | 1.6     | 15 Jul 2026 | **Fixed** RS485 timing: Added proper settling delays for Modbus reliability |
-| 1.7     | 15 Jul 2026 | **Added** Custom 3-byte header (0x00 0x00 0x48) for FC03/FC04 Read responses |
+| 1.7     | 15 Jul 2026 | **Added** Custom 3-byte header (0x00 0x00 0x30) for FC03/FC04 Read responses |
 
 ---
 

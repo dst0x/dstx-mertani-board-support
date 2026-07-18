@@ -7,16 +7,16 @@
 * Modified: 15 July 2026
 *     Integrated with sensor_manager for centralized control
 * 
-* Register map:
-*   [0] PM1.0  ÷10 µg/m³
-*   [1] PM2.5  ÷10 µg/m³
-*   [2] PM4.0  ÷10 µg/m³
-*   [3] PM10   ÷10 µg/m³
-*   [4] RH     ÷100 %RH
-*   [5] Temp   ÷10 °C
-*   [6] VOC    ÷10
-*   [7] NOx    ÷10
-*   [8] CO2    ppm
+* Register map (Modbus scaling):
+*   [0] PM1.0  ÷10 µg/m³  (sensor ×10 → register direct)
+*   [1] PM2.5  ÷10 µg/m³  (sensor ×10 → register direct)
+*   [2] PM4.0  ÷10 µg/m³  (sensor ×10 → register direct)
+*   [3] PM10   ÷10 µg/m³  (sensor ×10 → register direct)
+*   [4] RH     ÷10 %RH    (sensor ×100 → driver ÷10 → register)
+*   [5] Temp   ÷10 °C     (sensor ×200 → driver ÷20 → register, master ÷10)
+*   [6] VOC    ×1         (sensor ×10 → register direct, no master scaling)
+*   [7] NOx    ×1         (sensor ×10 → register direct, no master scaling)
+*   [8] CO2    ×1 ppm     (sensor ppm → register direct)
 * 
 * Integration Notes:
 *   - This driver is designed to work with sensor_manager middleware
