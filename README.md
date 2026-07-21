@@ -361,7 +361,7 @@ CDAB (middle-endian): [0x42480000] stored as [0x4248][0x0000]
 | 103       | 0x67      | CO sensor state         | 0=UNINIT, 1=IDLE, 2=WARMING, 3=RUNNING, 4=ERROR                     |
 | 104       | 0x68      | CO request count        | Total requests sent to the CO sensor                                 |
 | 105       | 0x69      | CO response count       | Total valid responses received                                       |
-| 106       | 0x6A      | CO timeout count        | Total timeouts (no response)                                         |
+| 106       | 0x6A      | CO timeout count        | Total timeouts (no response)                                         |requ
 | 107       | 0x6B      | CO CRC error count      | Total CRC errors in responses                                        |
 | 108       | 0x6C      | PMSX003 state           | 0=UNINIT, 1=IDLE, 2=RECEIVING, 3=READY, 4=ERROR                     |
 | 109       | 0x6D      | PMSX003 error count     | Total frame errors (checksum, timeout)                               |

@@ -64,8 +64,7 @@ static volatile uint16_t rs485_echo_count = 0U;
     static uint8_t u32_to_dec(uint32_t value, uint8_t *buf){
         char temp[11U];
         uint8_t pos = 0U, len, i;
-        if(value == 0){bsp_systick_delay_ms(SEN66_STOP_DELAY_MS)  → 1400 ms blocking, tanpa IWDG refresh
-        bsp_systick_delay_ms(SEN66_RESET_DELAY_MS) → 1200 ms blocking, tanpa IWDG refresh
+        if(value == 0){
             buf[0U] = '0';
             buf[1U] = '\0';
             return 1U;
@@ -212,7 +211,7 @@ static volatile uint16_t rs485_echo_count = 0U;
         uint32_t timeout_counter = 0U;
         if(data == NULL){ return 0U; }
 
-        bsp_gpio_rs485_drive_mode();
+        /* USART1 for CO sensor - no DE/RE control needed (full duplex) */
         for(volatile uint32_t d = 0U; d < 500U; d++) { }
 
         for(i = 0U; i < len; i++){
@@ -221,7 +220,6 @@ static volatile uint16_t rs485_echo_count = 0U;
                 timeout_counter++;
                 if((timeout_counter & 0xFFFU) == 0U){ bsp_iwdg_refresh(); }
                 if(timeout_counter > 100000U){
-                    bsp_gpio_rs485_logging_mode();
                     return i;
                 }
             }
@@ -235,8 +233,6 @@ static volatile uint16_t rs485_echo_count = 0U;
             if(timeout_counter > 100000U){ break; }
         }
 
-        for(volatile uint32_t d = 0U; d < 500U; d++) { }
-        bsp_gpio_rs485_logging_mode();
         for(volatile uint32_t d = 0U; d < 500U; d++) { }
 
         bsp_modbus_rx_flush();

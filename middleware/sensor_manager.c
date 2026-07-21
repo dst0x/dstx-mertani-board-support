@@ -270,7 +270,7 @@ status_e sensor_manager_poll(sensor_manager_ctx_s *ctx) {
                     co->last_valid_data = co->data;
                 }
 #endif
-            } else if (status != STATUS_OK) {
+            } else if (status != STATUS_NOT_READY) {
                 ctx->co_ctx.error_count++;
                 if (ctx->co_ctx.error_count >= SENSOR_MAX_ERRORS) {
                     ctx->co_ctx.status = SENSOR_STATUS_ERROR;

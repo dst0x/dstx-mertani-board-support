@@ -12,9 +12,16 @@
 #include <stdbool.h>
 #include "common/common_types.h"
 
+/* Overridable via compiler -D flags (see app/<name> targets in Makefile) */
+#ifndef SENSOR_ENABLE_SEN66
 #define SENSOR_ENABLE_SEN66         1   /* Sensirion SEN66 Air Quality Sensor */
+#endif
+#ifndef SENSOR_ENABLE_INFWIN_CO
 #define SENSOR_ENABLE_INFWIN_CO     1   /* Infwin CO Sensor */
-#define SENSOR_ENABLE_PMSX003       1   /* Plantower PMSX003 Particulate Matter Sensor */
+#endif
+#ifndef SENSOR_ENABLE_PMSX003
+#define SENSOR_ENABLE_PMSX003       0   /* Plantower PMSX003 Particulate Matter Sensor */
+#endif
 
 #define SENSOR_POLL_INTERVAL_MS     1000U   /* Normal polling interval */
 #define SENSOR_RETRY_INTERVAL_MS    5000U   /* Retry interval after error */

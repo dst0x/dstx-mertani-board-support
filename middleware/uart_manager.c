@@ -56,7 +56,7 @@ status_e uart_manager_init(uart_manager_ctx_s *ctx) {
             
             /* Print initialization message */
             bsp_debug_write_str("\r\n=================================\r\n");
-            bsp_debug_write_str("MERTANI BSP V1.0\r\n");
+            bsp_debug_write_str("         MERTANI BSP V1.0         \r\n");
             bsp_debug_write_str("UART MANAGER - TTL DEBUG MODE\r\n");
             bsp_debug_write_str("=================================\r\n");
 #endif

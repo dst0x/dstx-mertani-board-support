@@ -22,7 +22,10 @@
 /* Typedef for use as variable type in structs */
 typedef uint8_t comm_path_mode_e;
 
-#define USART1_MODE             COMM_PATH_MODE_RS485  /* PMSX003 Sensor Mode - Change to RS485 for Modbus/CO sensor */
+/* Overridable via compiler -D flags (see app/<name> targets in Makefile) */
+#ifndef USART1_MODE
+#define USART1_MODE             COMM_PATH_MODE_RS485
+#endif
 
 #if (USART1_MODE == COMM_PATH_MODE_TTL)
     #define USART1_DEBUG_MODE

@@ -5,10 +5,7 @@
 #include "middleware/uart_manager.h" 
 
 #define DEBUG_BUFFER_SIZE   (256U)
-/* MODBUS_BUFFER_SIZE defined in uart_manager.h */
 #define RS485_BUFFER_SIZE   (16U)
-
-/* USART1 mode is configured in middleware/uart_manager.h */
 
 /* USART1 Debug Mode */
 #ifdef USART1_DEBUG_MODE
@@ -22,7 +19,6 @@
 
 /* USART1 MODBUS Mode */
 #ifdef USART1_MODBUS_MODE
-    /* Forward declaration */
     struct co_ctx_tag;
     
     void bsp_modbus_init(void);
@@ -31,18 +27,13 @@
     uint16_t bsp_modbus_rx_count(void);
     uint8_t bsp_modbus_rx_get(void);
     
-    /* Set CO sensor context pointer for RX interrupt */
     void bsp_modbus_set_co_sensor_ptr(struct co_ctx_tag *ptr);
 #endif /* USART1 MODBUS Mode */
 
 /* USART1 Sensor Mode (PMSX003, etc.) */
 #ifdef USART1_SENSOR_MODE
-    /* Forward declaration */
     struct pmsx003_ctx_tag;
-    
     void bsp_sensor_init(void);
-    
-    /* Set PMSX003 sensor context pointer for RX interrupt */
     void bsp_sensor_set_pmsx003_ptr(struct pmsx003_ctx_tag *ptr);
 #endif /* USART1 Sensor Mode */
 

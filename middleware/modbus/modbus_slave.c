@@ -567,23 +567,18 @@ void modbus_slave_rx_byte(modbus_slave_ctx_s *ctx, uint8_t byte, uint32_t tick)
     build_register_map(sensor_ctx, regs);
 #endif
 
-    /* Custom header: 0x00 0x00 0x30 (NOT included in CRC calculation) */
-    ctx->tx_buf[0U] = 0x00U;
-    ctx->tx_buf[1U] = 0x00U;
-    ctx->tx_buf[2U] = 0x48U;  /* 0x30 = '0' or 48 decimal */
-    
-    /* Build Modbus Read response */
+    /* Build standard Modbus Read response (NO custom header) */
     byte_cnt        = (uint16_t)(qty * 2U);
-    ctx->tx_buf[3U] = g_slave_id;
-    ctx->tx_buf[4U] = fc;
-    ctx->tx_buf[5U] = (uint8_t)(byte_cnt & 0x00FFU);
+    ctx->tx_buf[0U] = g_slave_id;
+    ctx->tx_buf[1U] = fc;
+    ctx->tx_buf[2U] = (uint8_t)(byte_cnt & 0x00FFU);
     for (i = 0U; i < qty; i++) {
         uint16_t reg_val = regs[start_addr + i];
-        ctx->tx_buf[6U + (i * 2U)]      = (uint8_t)((reg_val >> 8U) & 0x00FFU);
-        ctx->tx_buf[6U + (i * 2U) + 1U] = (uint8_t)(reg_val & 0x00FFU);
+        ctx->tx_buf[3U + (i * 2U)]      = (uint8_t)((reg_val >> 8U) & 0x00FFU);
+        ctx->tx_buf[3U + (i * 2U) + 1U] = (uint8_t)(reg_val & 0x00FFU);
     }
-    /* CRC calculated ONLY on Modbus portion (after 0x30 header) */
-    *tx_len = append_crc(&ctx->tx_buf[3U], (uint16_t)(3U + byte_cnt)) + 3U; /* +3 for header */
+    /* Standard Modbus CRC calculation */
+    *tx_len = append_crc(ctx->tx_buf, (uint16_t)(3U + byte_cnt));
 
 done:
     ctx->rx_len      = 0U;
